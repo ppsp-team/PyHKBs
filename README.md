@@ -15,6 +15,8 @@ Multi-HKBs in Python
 
 - Build a simple environment (matplotlib)
 
+- Use artificial evolution to find optimal HKB coupling matrix
+
 - Build a more complex environment by interfacing with Unity 3D
 
 ## References
