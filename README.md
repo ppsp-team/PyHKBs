@@ -9,7 +9,7 @@ Multi-HKBs in Python
 
 - Implement HKB equation and illustrate properties [2022-07-06, [basicHKB.py](basicHKB.py)]
 
-- Implement HKB composed of two oscillators
+- Implement HKB composed of two oscillators [2022-07-07, [twoOscillators.py](twoOscillators.py)]
 
 - Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$)
 
@@ -30,3 +30,5 @@ Frank, T. D., Daffertshofer, A., Peper, C. E., Beek, P. J., & Haken, H. (2000). 
 Haken, H., Kelso, J. S., & Bunz, H. (1985). A theoretical model of phase transitions in human hand movements. Biological cybernetics, 51(5), 347-356. [doi:10.1007/BF00336922](https://link.springer.com/article/10.1007/BF00336922)
 
 Ramsauer, H., Schäfl, B., Lehner, J., Seidl, P., Widrich, M., Adler, T., ... & Hochreiter, S. (2020). Hopfield networks is all you need. arXiv preprint arXiv:2008.02217. [doi:10.48550/arXiv.2008.02217](https://arxiv.org/abs/2008.02217)
+
+Zhang, M., Beetle, C., Kelso, J. S., & Tognoli, E. (2019). Connecting empirical phenomena and theoretical models of biological coordination across scales. Journal of the Royal Society Interface, 16(157), 20190360. [doi:10.1098/rsif.2019.0360](https://royalsocietypublishing.org/doi/full/10.1098/rsif.2019.0360)
