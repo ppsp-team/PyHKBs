@@ -1,7 +1,7 @@
 
 # PyHKBs
 
-Multi-HKBs in Python
+Multi-HKBs agents in Python
 
 ## Roadmap
 
