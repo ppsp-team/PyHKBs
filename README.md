@@ -9,7 +9,7 @@ Multi-HKBs in Python
 
 - Implement HKB equation and illustrate properties [2022-07-06, [basicHKB.py](basicHKB.py)]
 
-- Implement HKB with composed of two oscillators
+- Implement HKB composed of two oscillators
 
 - Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$)
 

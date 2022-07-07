@@ -18,7 +18,7 @@ from torchdiffeq import odeint
 
 
 #Generate parameters to plot phase space
-npdOmega = 0. #Hertz, difference between differences in intrinsic frequencies; can modify the "strength" of an attractor/repeller
+npdOmega = 0. #Hertz, difference between intrinsic frequencies; can modify the "strength" of an attractor/repeller
 np_a = 5. #strength of in-phase coupling
 np_b = 1. #strength of anti-phase coupling
 #higher values of b with respect to a lead to a larger stable region of anti-phase coupling (try setting a to 5 and varying b to 0,1,2,5)
