@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # coding=utf-8
 # ==============================================================================
-# title           : twoOscillators.py
+# title           : two_oscillators.py
 # description     : Explicitly model two oscillators of which the connection is governed by the HKB equations
 # author          : Nicolas Coucke
 # date            : 2022-07-07
 # version         : 1
-# usage           : python twoOscillators.py
+# usage           : python two_oscillators.py
 # notes           : install the packages with "pip install -r requirements.txt"
 # python_version  : 3.9.2
 # ==============================================================================
@@ -29,12 +29,13 @@ frequency_2 = torch.as_tensor([1.6])  # Hertz, intrinsic frequency of oscillator
 phase_coupling = torch.as_tensor([0.4])  # phase coupling
 anti_phase_coupling = torch.as_tensor([0.3])  # anti-phase coupling
 
+
 def HKBextended(t, phase):
     "System of two oscillators"
     phase1 = torch.remainder(phase[0], 2 * torch.pi)  # clamp phases between 0 and 2pi
     phase2 = torch.remainder(phase[1], 2 * torch.pi)
     phase_difference_1 = torch.as_tensor([2 * torch.pi * frequency_1 - phase_coupling * torch.sin(phase1 - phase2) - anti_phase_coupling * torch.sin(2 * (phase1 - phase2))])
-    phase_difference_2= torch.as_tensor([2 * torch.pi * frequency_2 - phase_coupling * torch.sin(phase2 - phase1) - anti_phase_coupling * torch.sin(2 * (phase2 - phase1))])
+    phase_difference_2 = torch.as_tensor([2 * torch.pi * frequency_2 - phase_coupling * torch.sin(phase2 - phase1) - anti_phase_coupling * torch.sin(2 * (phase2 - phase1))])
     return ( phase_difference_1, phase_difference_2)
 
 
