@@ -11,7 +11,7 @@ Multi-HKBs agents in Python
 
 - Implement HKB composed of two oscillators [2022-07-07, [two_oscillators.py](two_oscillators.py)]
 
-- Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$)
+- Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$) [2022-07-11, [network_of_oscillators.py](network_of_oscillators.py)]
 
 - Create an agent class with input and output
 
