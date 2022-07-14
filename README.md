@@ -21,6 +21,10 @@ Multi-HKBs agents in Python
 
 - Build a more complex environment by interfacing with Unity 3D
 
+## Agent design
+![alt text](https://github.com/ppsp-team/PyHKBs/blob/main/agentSchema.png?raw=true)
+The agent has four oscillators, corresponding to the sensory system (1 and 2) and motor system (3 and 4). The grey boxes represent the two eyes (or sensors). The left eye feeds the change in stimulus intensity to oscillator 1; the right eye to oscillator 2. The agent's orientation in space changes according to the phase difference between the two motor oscillators. The agent travels with a uniform speed. 
+
 ## References
 
 Aguilera, M., Bedia, M. G., Santos, B. A., & Barandiaran, X. E. (2013). The situated HKB model: how sensorimotor spatial coupling can alter oscillatory brain dynamics. Frontiers in computational neuroscience, 7, 117. [doi:10.3389/fncom.2013.00117](https://www.frontiersin.org/articles/10.3389/fncom.2013.00117/full)
