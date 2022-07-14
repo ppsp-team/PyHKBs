@@ -13,9 +13,9 @@ Multi-HKBs agents in Python
 
 - Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$) [2022-07-11, [network_of_oscillators.py](network_of_oscillators.py)]
 
-- Create an agent class with input and output
+- Create an agent class with input and output [2022-07-13, [agent.py](agent.py)]
 
-- Build a simple environment (matplotlib)
+- Build a simple environment (matplotlib) [2022-07-14, [single_agent_simulation.py](agent.py)]
 
 - Use artificial evolution to find optimal HKB coupling matrix
 
