@@ -10,6 +10,16 @@ oscillator 1: left eye
 oscillator 2: right eye
 oscillator 3: left motor
 oscillator 4: right motor
+The agent travels at constant speed. The orientation of the agent changes according 
+to the phase difference between the two motor oscillators
+
+Structure:
+-----------
+next_timestep calls
+    runge_kutta_HKB calls
+        oscillator_system cals
+            single_oscillator
+
 
 """
 # author          : Nicolas Coucke
@@ -32,39 +42,39 @@ class Agent:
     def __init__(self, agent_id, stimulus_sensitivity, phase_coupling_matrix, anti_phase_coupling_matrix, initial_phases, frequencies, movement_speed):
 
         # define agent variables that stay constant during the simulation
-        self.id = agent_id
-        self.phase_coupling_matrix = phase_coupling_matrix
-        self.anti_phase_coupling_matrix = anti_phase_coupling_matrix
-        self.initial_phases = initial_phases
-        self.frequencies = frequencies
-        self.stimulus_sensitivity = stimulus_sensitivity
-        self.movement_speed = movement_speed
+        self.id = agent_id # important later in social phase
+        self.phase_coupling_matrix = phase_coupling_matrix # 4 by 4 matrix
+        self.anti_phase_coupling_matrix = anti_phase_coupling_matrix # 4 by 4 matrix
+        self.initial_phases = initial_phases # initial phases of the 4 oscillators
+        self.frequencies = frequencies # intrinsic frequencies of the 4 oscillators
+        self.stimulus_sensitivity = stimulus_sensitivity # of the agent to the change in stimulus intensity
+        self.movement_speed = movement_speed # of the agent in the environment
         self.number_of_oscillators = 4
-        self.agent_radius = torch.as_tensor([1.])
-        self.agent_eye_angle = torch.pi/4  # 45 degree angle between the eyes of the agent
+        self.agent_radius = torch.as_tensor([2.]) # radius of the agent's body
+        self.agent_eye_angle = torch.pi/4 # 45 degree angle between the eyes of the agent
 
         # initialize agent variables that change during the simulation
-        self.phases = initial_phases
+        self.phases = initial_phases # phases of the 4 oscillators
         self.stimulus_intensity_left = torch.as_tensor([0.])
         self.stimulus_intensity_right = torch.as_tensor([0.])
-        self.stimulus_change_left = torch.as_tensor([0.])
+        self.stimulus_change_left = torch.as_tensor([0.]) # change in stimulus intensity
         self.stimulus_change_right = torch.as_tensor([0.])
-        self.position = torch.as_tensor([0., 0.])
-        self.orientation = torch.as_tensor([0.])
+        self.position = torch.as_tensor([0., 0.]) # of agent in the environment
+        self.orientation = torch.as_tensor([0.]) # wrt world coordinate system
 
 
     def single_oscillator(self, oscillator_number, phases):
         """"
         The phase of a oscillator i is modified by being connected to the other oscillator j by means of the HKB equations
-        If the oscillator is part of the sensory system, then it's phase is also influenced by the change in stimulus intensity
+        If the oscillator is part of the sensory system, then its phase is also influenced by the change in stimulus intensity
 
         Arguments
         ----------
 
-        oscillator number: int
-            1, 2, 3 or 4
+        oscillator number of oscillator i: int
+            0, 1, 2 or 3 (true oscillator number -1)
 
-        phases: torch.tensor or length 4
+        phases: torch.tensor of length 4
             the phase of each oscillator at the previous timestep
 
         Returns
@@ -75,7 +85,7 @@ class Agent:
 
         """
 
-        # phase of oscillator 
+        # extract phase of oscillator i
         oscillator_phase = phases[oscillator_number]
 
         # phase change of oscillator i due to intrinsic frequency
@@ -83,13 +93,13 @@ class Agent:
 
         # include sensory input for the eyes
         if oscillator_number == 0: # left eye
-            phase_difference += self.stimulus_sensitivity*self.stimulus_change_left
+            phase_difference += self.stimulus_sensitivity * self.stimulus_change_left
         elif oscillator_number == 1: # right eye
-            phase_difference += self.stimulus_sensitivity*self.stimulus_change_right
+            phase_difference += self.stimulus_sensitivity * self.stimulus_change_right
 
-        for other_oscillator_number in range(4): # loop through all other oscillators
+        for other_oscillator_number in range(4): # loop through all oscillators j
 
-            if other_oscillator_number != oscillator_number:
+            if other_oscillator_number != oscillator_number: # no self-coupling
 
                 # get the phase and coupling variables for oscillator j
                 phase_coupling = self.phase_coupling_matrix[oscillator_number,
@@ -97,17 +107,18 @@ class Agent:
                 anti_phase_coupling = self.anti_phase_coupling_matrix[oscillator_number, 
                     other_oscillator_number]
                 other_oscillator_phase = phases[other_oscillator_number]
-
+#
                 # phase change of oscillator i due to oscillator j
-                phase_difference += torch.as_tensor([- phase_coupling * torch.sin(oscillator_phase
-                    - other_oscillator_phase) - anti_phase_coupling * torch.sin(2 * (oscillator_phase - other_oscillator_phase))])
+                between_oscillator_phase = (oscillator_phase - other_oscillator_phase) #% 2 * torch.pi
+                phase_difference += torch.as_tensor([- phase_coupling * torch.sin(between_oscillator_phase) - 
+                anti_phase_coupling * torch.sin(2 * (between_oscillator_phase))])
 
         return phase_difference
 
 
     def oscillator_system(self, phases):
         """
-        Describes the system of N mutually influencing oscillators 
+        Updates phases of the system of 4 mutually influencing oscillators 
 
         Arguments
         ----------
@@ -120,11 +131,13 @@ class Agent:
         -----------
 
         phase_differences: torch.tensor of length 4
-            phases difference for the 4 oscillators
+            phase differences for the 4 oscillators
+            i.e. phases(t+1) - phases(t)
 
         """
-        phase_differences = torch.as_tensor(np.zeros(4,))
+        phase_differences = torch.zeros(4)
 
+        # calculate updated phase for each oscillator individually
         for oscillator_number in range(self.number_of_oscillators):
             phase_differences[oscillator_number] = self.single_oscillator(oscillator_number,phases)
 
@@ -155,12 +168,14 @@ class Agent:
         k2 = self.oscillator_system(phases + 0.5 * k1) * (1/fs)
         k3 = self.oscillator_system(phases + 0.5 * k2)  * (1/fs)
         k4 = self.oscillator_system(phases + k3) * (1/fs)
-        new_phases = phases + (1/6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        phase_differences = (1/6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        new_phases = phases + phase_differences 
+       # new_phases = new_phases % 2 * torch.pi # introduce periodicity
 
-        return new_phases
+        return new_phases, phase_differences
         
 
-    def next_timestep(self, stimulus_intensity_left, stimulus_intensity_right):
+    def next_timestep(self, time, stimulus_intensity_left, stimulus_intensity_right, periodic_randomization):
         """"
         Receive input from the environment
         Update the internal states of the agent
@@ -183,6 +198,10 @@ class Agent:
 
 
         """
+        if periodic_randomization:
+            # randomize phases every 20 timesteps (c.f. Aguilera et al., 2013)
+            self.phases = self.randomize_phases(time)
+
         # calculate change in stimulus intensity for each eye
         self.stimulus_change_left = stimulus_intensity_left - self.stimulus_intensity_left
         self.stimulus_change_right = stimulus_intensity_right - self.stimulus_intensity_right
@@ -192,20 +211,21 @@ class Agent:
         self.stimulus_intensity_right = stimulus_intensity_right
 
         # determine the new state of the agent
-        self.phases = self.runge_kutta_HKB(self.phases)
+        self.phases, phase_differences  = self.runge_kutta_HKB(self.phases)
 
         # change in orientation is proportional to phase difference between motor units
-        self.orientation = self.orientation + (self.phases[2] - self.phases[3])
+        motor_phase_difference = (self.phases[2] - self.phases[3]) #% 2 * torch.pi 
+        self.orientation = self.orientation + motor_phase_difference
 
         # calculate next position according to movement speed and new orientation
         self.position = self.position + torch.tensor([torch.cos(self.orientation)
-         * self.movement_speed * (1/fs), torch.sin(self.orientation) * self.movement_speed * (1/fs)]) # ypos
+         * self.movement_speed * (1/fs), torch.sin(self.orientation) * self.movement_speed * (1/fs)])
 
-        return self.position, self.orientation
+        return self.position, self.orientation, np.array(self.phases), np.array(phase_differences)
 
 
     def eye_positions(self):
-         """"
+        """"
         Calculate position of the agent's eyes in world space
         based on the orientation and position
         
@@ -222,13 +242,27 @@ class Agent:
                 position of the right eye in world space
 
         """
-        left_eye_position = torch.tensor([0., 0.])
-        right_eye_position = torch.tensor([0., 0.])
+        left_eye_position = torch.zeros(2)
+        right_eye_position = torch.zeros(2)
 
-        left_eye_position[0] = self.position[0] + torch.cos(self.orientation - self.agent_eye_angle/2 )*self.agent_radius
-        left_eye_position[1] = self.position[1] + torch.sin(self.orientation - self.agent_eye_angle/2 )*self.agent_radius
+        left_eye_position[0] = self.position[0] + torch.sin(self.orientation - self.agent_eye_angle/2 ) * self.agent_radius
+        left_eye_position[1] = self.position[1] + torch.cos(self.orientation - self.agent_eye_angle/2 ) * self.agent_radius
 
-        right_eye_position[0] = self.position[0] + torch.cos(self.orientation + self.agent_eye_angle/2 )*self.agent_radius
-        right_eye_position[1] = self.position[1] + torch.sin(self.orientation + self.agent_eye_angle/2 )*self.agent_radius
+        right_eye_position[0] = self.position[0] + torch.sin(self.orientation + self.agent_eye_angle/2 ) * self.agent_radius
+        right_eye_position[1] = self.position[1] + torch.cos(self.orientation + self.agent_eye_angle/2 ) * self.agent_radius
 
         return left_eye_position, right_eye_position 
+
+
+    def randomize_phases(self, time):
+        """
+        Takes in the current phases of each oscillator and
+        assigns random values to them from a uniform distribution
+        between 0 and 2pi
+
+        """
+        if time % 20 == 0:
+            self.phases = 2 * torch.pi * torch.rand(len(self.phases))
+
+        return self.phases
+ 

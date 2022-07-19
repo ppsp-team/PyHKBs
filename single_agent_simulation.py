@@ -22,10 +22,11 @@ import time
 
 # define variables of simulated environment
 fs = torch.as_tensor([100])
-duration = torch.as_tensor([10]) # s
+duration = torch.as_tensor([50]) # s
 stimulus_position = torch.tensor([-75., 75.]) # [m, m]
-stimulus_gradient = torch.as_tensor([1])
+stimulus_gradient = torch.as_tensor([3])
 max_stimulus_value = torch.as_tensor([100.])
+periodic_randomization = True
 
 # instantiate an agent
 agent_id = 1
@@ -33,8 +34,8 @@ stimulus_sensitivity = torch.as_tensor([10.])
 phase_coupling_matrix = symmetric_matrix_4_torch(5)
 anti_phase_coupling_matrix = symmetric_matrix_4_torch(1)
 initial_phases = torch.tensor([0., torch.pi, 0.6, torch.pi]) # rad
-frequencies = torch.tensor([1.2, 1.3, 1.5, 1.6]) # Hertz
-movement_speed = torch.as_tensor([20]) # m/s
+frequencies = torch.tensor([1.2, 1.3, 1.5, 1.5]) # Hertz
+movement_speed = torch.as_tensor([30]) # m/s
 agent_position = torch.tensor([0., 0.]) # [m, m]
 agent_orientation = torch.as_tensor([0.]) # rad
 
@@ -58,7 +59,7 @@ for i in range(len(t)):
     stimulus_intensity_right = max_stimulus_value - stimulus_gradient * eucl_distance(stimulus_position, right_eye_position)
 
     # get agent movement based on stimulus intensities
-    agent_position, agent_orientation = agent.next_timestep(stimulus_intensity_left, stimulus_intensity_right)
+    agent_position, agent_orientation,_ ,_ = agent.next_timestep(i, stimulus_intensity_left, stimulus_intensity_right, periodic_randomization)
 
     # save agent position for visualization
     agent_position_x[i] = agent_position[0]
@@ -67,4 +68,6 @@ for i in range(len(t)):
 # visualize agent trajectory
 plt.plot(agent_position_x, agent_position_y)
 plt.scatter(stimulus_position[0], stimulus_position[1])
+plt.xlim([-100,100])
+plt.ylim([-100,100])
 plt.show()

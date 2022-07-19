@@ -18,7 +18,7 @@ from torchdiffeq import odeint
 # Increase precision of float numbers
 torch.set_default_dtype(torch.float64)
 
-# Define pi for subsequent trigonometricks
+# Define pi for subsequent trigonometrics
 torch.pi = torch.acos(torch.zeros(1)).item() * 2
 
 # Key parameters of the simulation

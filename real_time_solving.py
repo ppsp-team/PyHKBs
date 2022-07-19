@@ -2,7 +2,8 @@
 # coding=utf-8
 # ==============================================================================
 # title           : real_time_solving.py
-# description     : solve the system of equations at every timestep so that it can deal with inputs
+# description     : DRAFT SCRIPT to solve the system of equations at every timestep 
+#                   so that it can deal with inputs
 #                   comparison between torchdiffeq and custom RK function
 # author          : Nicolas Coucke
 # date            : 2022-07-12

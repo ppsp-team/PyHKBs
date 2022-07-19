@@ -15,9 +15,13 @@ Multi-HKBs agents in Python
 
 - Create an agent class with input and output [2022-07-13, [agent.py](agent.py)]
 
-- Build a simple environment (matplotlib) [2022-07-14, [single_agent_simulation.py](agent.py)]
+- Build a simple environment (matplotlib) [2022-07-14, [single_agent_simulation.py](single_agent_simulation.py)]
 
-- Use artificial evolution to find optimal HKB coupling matrix
+- Visual simulation of agent in simple environment [2022-07-19, [single_agent_visualization.py](single_agent_visualization.py)]
+
+- Understand agent dynamics and hand-pick coupling matrix for desired behavior
+
+- Use artificial evolution or RL to find optimal HKB coupling matrix
 
 - Build a more complex environment by interfacing with Unity 3D
 
