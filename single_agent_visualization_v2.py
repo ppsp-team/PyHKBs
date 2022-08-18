@@ -20,29 +20,29 @@ from agent import Agent
 import time
 from matplotlib import animation
 import tkinter as tk
+import cmath
 
 
 # define variables of simulated environment
-fs = torch.as_tensor([100])
-duration = torch.as_tensor([50]) # s
+fs = torch.as_tensor([50])
+duration = torch.as_tensor([40]) # s
 stimulus_position = torch.tensor([0., 0.]) # [m, m]
-stimulus_decay_rate = torch.as_tensor([0.1])
-stimulus_scale = torch.as_tensor([200.])
-periodic_randomization = True
+stimulus_decay_rate = torch.as_tensor([0.2])
+stimulus_scale = torch.as_tensor([300.])
+periodic_randomization = False
 
 # instantiate an agent
 agent_id = 1
-stimulus_sensitivity = torch.as_tensor([0.5])
-phase_coupling_matrix = symmetric_matrix(0.2, 4)
-phase_coupling_matrix = torch.tensor([[0, 0.2, 0.5, 0.2],
-                                      [0.2, 0, 0.2, 0.5],
-                                      [0.5, 0.2, 0, 0.2],
-                                      [0, 0.5, 0.2, 0]])
-
-anti_phase_coupling_matrix = symmetric_matrix(0.3, 4)
-initial_phases = torch.tensor([0., torch.pi, 0.6, torch.pi]) # rad
-frequencies = torch.tensor([1, 1, 1, 2 ]) # Hertz
-movement_speed = torch.as_tensor([10]) # m/s
+stimulus_sensitivity = torch.as_tensor([20])
+phase_coupling_matrix = symmetric_matrix(0.05, 4)
+phase_coupling_matrix = torch.tensor([[0.00, 0.01, 0.05, 0.01],
+                                      [0.01, 0.00, 0.01, 0.05],
+                                      [0.05, 0.01, 0.00, 0.01],
+                                      [0.01, 0.05, 0.01, 0.00]])
+anti_phase_coupling_matrix = symmetric_matrix(0.001, 4)
+initial_phases = torch.tensor([0., 0, 0.1, 0.1*torch.pi]) # rad
+frequencies = torch.tensor([10, 10, 10, 10 ]) # Hertz
+movement_speed = torch.as_tensor([8]) # m/s
 agent_position = torch.tensor([0., -50.]) # [m, m]
 agent_orientation = torch.as_tensor([0.]) # rad
 
@@ -59,10 +59,13 @@ agent_position_y = []
 oscillator_spaces_x = np.zeros((4,duration*fs)) # for plotting phase spaces
 oscillator_spaces_y = np.zeros((4,duration*fs))
 
+sensory_phase_difference = []
+sensor_left_input = []
+sensor_right_input = []
+motor_phase_difference = []
 
 # create objects for visualization
-fig, (ax1, ax2, ax3) = plt.subplots(1,3)
-
+fig, (ax1, ax2, ax3, ax4) = plt.subplots(1,4)
 # agent trajectory 
 ax1.scatter(stimulus_position[0], stimulus_position[1])
 ax1.set_xlim([-100,100])
@@ -90,14 +93,20 @@ ax2.set_title('Phase difference between oscillators')
 
 # phase space of oscillators
 ax3.set_xlim([0, 2 * np.pi])
-ax3.set_ylim([-2, 4])
-oscillator_space_1, = ax3.plot([], [], alpha=0.3)
-oscillator_space_2, = ax3.plot([], [], alpha=0.3)
-oscillator_space_3, = ax3.plot([], [], alpha=0.3)
-oscillator_space_4, = ax3.plot([], [], alpha=0.3)
-oscillator_spaces = [oscillator_space_1, oscillator_space_2, oscillator_space_3, oscillator_space_4]
+ax3.set_ylim([-20, 20])
+oscillator_space_1 = ax3.scatter(0, 0, alpha=0.2, edgecolors=None, linewidths = 0, s = 1)
+oscillator_space_2 = ax3.scatter(0, 0, alpha=0.2, edgecolors=None, linewidths = 0, s = 1)
+oscillator_spaces = [oscillator_space_1, oscillator_space_2]
 ax3.set_title('Phase difference oscillators')
 
+ax4.set_xlim([0, fs * duration])
+ax4.set_ylim([-2, 2*np.pi])
+sensory_phase_line, = ax4.plot(0,0)
+sensor_left_line, = ax4.plot(0,0)
+sensor_right_line, = ax4.plot(0,0)
+motor_phase_line, = ax4.plot(0,0)
+
+ax4.legend([sensory_phase_line, sensor_left_line, sensor_right_line, motor_phase_line], ["sensory phase", "left sensor", "right sensor", "motor phase"])
 def get_stimulus_indensity(distance):
     intensity = stimulus_scale * np.exp( - stimulus_decay_rate * distance )
 
@@ -114,10 +123,12 @@ def update_simulation(i):
     # calculate the stimulus intensity at the eye positions
     left_eye_distance = eucl_distance(stimulus_position, left_eye_position)
     right_eye_distance = eucl_distance(stimulus_position, right_eye_position)
-    stimulus_intensity_left = stimulus_scale * torch.exp( - stimulus_decay_rate * left_eye_distance)
-    stimulus_intensity_right = stimulus_scale * torch.exp( - stimulus_decay_rate * right_eye_distance)
+    print( - stimulus_decay_rate * left_eye_distance)
+    stimulus_intensity_left = stimulus_scale * np.exp( - stimulus_decay_rate * left_eye_distance)
+    stimulus_intensity_right = stimulus_scale * np.exp( - stimulus_decay_rate * right_eye_distance)
 
     
+    previous_phases = agent.phases
     # get agent movement based on stimulus intensities
     agent_position, agent_orientation, phases, phase_differences  = agent.next_timestep(i, stimulus_intensity_left, stimulus_intensity_right, periodic_randomization)
     
@@ -127,12 +138,25 @@ def update_simulation(i):
         lines[L].set_linewidth(between_oscillator )
 
     # plot the trajectory of the individual oscillators in phase space
-    for S in range(4):
-        oscillator_spaces_x[S,i] = phases[S] % 2 * np.pi # absolute phase modulo 2pi
-        oscillator_spaces_y[S,i] = phase_differences[S] # phase change
-        if i > 100:
-            oscillator_spaces[S].set_xdata(oscillator_spaces_x[S,i-100:i])
-            oscillator_spaces[S].set_ydata(oscillator_spaces_y[S,i-100:i])
+    # between sensory oscillators
+    oscillator_spaces_x[0,i] = (phases[0] - phases[1]) % 2 * np.pi # absolute phase modulo 2pi
+    oscillator_spaces_y[0,i] = (phases[0] - phases[1]) - (previous_phases[0] - previous_phases[1]) * fs # phase change
+    #oscillator_spaces[0].set_xdata(oscillator_spaces_x[0,:])
+    #oscillator_spaces[0].set_ydata(oscillator_spaces_y[0,:])
+    plotdata = np.transpose(np.asarray((oscillator_spaces_x[0,:i], oscillator_spaces_y[0,:i])))
+    oscillator_spaces[0].set_offsets(plotdata)
+
+
+    # between motor oscillators
+    oscillator_spaces_x[1,i] = (phases[2] - phases[3]) % 2 * np.pi # absolute phase modulo 2pi
+    oscillator_spaces_y[1,i] = ((phases[2] - phases[3]) - (previous_phases[2] - previous_phases[3])) * fs # phase change
+    #oscillator_spaces[1].set_xdata(oscillator_spaces_x[1,:])
+    #oscillator_spaces[1].set_ydata(oscillator_spaces_y[1,:])
+    
+   # ax3.scatter(oscillator_spaces_x[0,:], oscillator_spaces_y[1,i], alpha=0.3)
+    plotdata = np.transpose(np.asarray((oscillator_spaces_x[1,:i], oscillator_spaces_y[1,:i])))
+    oscillator_spaces[1].set_offsets(plotdata)
+
 
     # plot the agent position in the environment
     agent_position_x.append(agent_position[0])
@@ -140,9 +164,26 @@ def update_simulation(i):
     line.set_xdata(agent_position_x)
     line.set_ydata(agent_position_y)
 
-    return line, line_1_2, line_1_3, line_1_4, line_2_3, line_2_4, line_3_4, oscillator_space_1, oscillator_space_2, oscillator_space_3, oscillator_space_4
+    # plot sensor and oscillator values
+    sensory_phase_difference.append(oscillator_spaces_x[0,i])
+    sensor_left_input.append(agent.stimulus_sensitivity * agent.stimulus_change_left)
+    sensor_right_input.append(agent.stimulus_sensitivity * agent.stimulus_change_right)
+    motor_phase_difference.append(oscillator_spaces_x[1,i])
 
-anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 1,
+    xdata = range(len(sensory_phase_difference))
+    sensory_phase_line.set_ydata(sensory_phase_difference)
+    sensory_phase_line.set_xdata(xdata)
+    sensor_left_line.set_ydata(sensor_left_input)
+    sensor_left_line.set_xdata(xdata)
+    sensor_right_line.set_ydata(sensor_right_input)
+    sensor_right_line.set_xdata(xdata)
+    motor_phase_line.set_ydata(motor_phase_difference)
+    motor_phase_line.set_xdata(xdata)
+
+
+    return line, line_1_2, line_1_3, line_1_4, line_2_3, line_2_4, line_3_4, oscillator_space_1, oscillator_space_2, sensory_phase_line, sensor_left_line, sensor_right_line, motor_phase_line
+
+anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 20,
         blit = True)
 plt.show()
 #anim.save('linechart.gif')

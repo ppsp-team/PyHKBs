@@ -14,6 +14,9 @@
 import matplotlib.pyplot as plt
 import torch
 from torchdiffeq import odeint
+import numpy as np;
+
+
 
 # Increase precision of float numbers
 torch.set_default_dtype(torch.float64)

@@ -15,13 +15,13 @@
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from utils import symmetric_matrix_4_torch, eucl_distance
+from utils import symmetric_matrix, eucl_distance
 from agent import Agent
 import time
 
 
 # define variables of simulated environment
-fs = torch.as_tensor([100])
+fs = torch.as_tensor([25])
 duration = torch.as_tensor([50]) # s
 stimulus_position = torch.tensor([-75., 75.]) # [m, m]
 stimulus_gradient = torch.as_tensor([3])
@@ -31,8 +31,8 @@ periodic_randomization = True
 # instantiate an agent
 agent_id = 1
 stimulus_sensitivity = torch.as_tensor([10.])
-phase_coupling_matrix = symmetric_matrix_4_torch(5)
-anti_phase_coupling_matrix = symmetric_matrix_4_torch(1)
+phase_coupling_matrix = symmetric_matrix(5, 4)
+anti_phase_coupling_matrix = symmetric_matrix(5, 4)
 initial_phases = torch.tensor([0., torch.pi, 0.6, torch.pi]) # rad
 frequencies = torch.tensor([1.2, 1.3, 1.5, 1.5]) # Hertz
 movement_speed = torch.as_tensor([30]) # m/s
@@ -41,8 +41,7 @@ agent_orientation = torch.as_tensor([0.]) # rad
 
 # create agent class
 agent = Agent(agent_id, stimulus_sensitivity, phase_coupling_matrix, anti_phase_coupling_matrix,
-            initial_phases, frequencies, movement_speed)
-
+            initial_phases, frequencies, movement_speed, agent_position, agent_orientation)
 
 # generate time and initialize arrays to store trajectory
 t = torch.linspace(start=0, end=float(duration), steps=int(duration * fs))
