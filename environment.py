@@ -2,11 +2,11 @@
 # coding=utf-8
 # ==============================================================================
 # title           : environment.py
-# description     : contains environment classes to train agents
+# description     : contains environment class to train agents
 # author          : Nicolas Coucke
 # date            : 2022-08-16
 # version         : 1
-# usage           : python single_agent_visualization
+# usage           : use within training_RL.py
 # notes           : install the packages with "pip install -r requirements.txt"
 # python_version  : 3.9.2
 # ==============================================================================
@@ -61,20 +61,18 @@ class Environment():
         return np.array([self.left_stimulus_intensity, self.right_stimulus_intensity])
 
     def step(self, action):
-        """action is moving left, moving right or continuing going forward """
+        """action is moving right, moving left or continuing going forward """
 
         # execute action
-
-        if action == 1:
-            # turn left
-            self.orientation = self.orientation - self.delta_orientation
-        elif action == 2:
+        if action == 0:
             # turn right
             self.orientation = self.orientation + self.delta_orientation
-        # elif action == 0
+        elif action == 1:
+            # turn left
+            self.orientation = self.orientation - self.delta_orientation
+        #elif action == 2:
         #   keep moving forward
 
-        
         # calculate next position according to movement speed and new orientation
         self.position = self.position + np.array([np.cos(self.orientation)
          * self.movement_speed * (1/self.fs), np.sin(self.orientation) * self.movement_speed * (1/self.fs)])
@@ -84,7 +82,6 @@ class Environment():
 
         # get new state and reward
         left_eye_position, right_eye_position = self.eye_positions()
-
         new_left_stimulus_intensity = self.get_stimulus_concentration(left_eye_position)
         new_right_stimulus_intensity = self.get_stimulus_concentration(right_eye_position)
 
@@ -96,24 +93,47 @@ class Environment():
         self.left_stimulus_intensity = new_left_stimulus_intensity
         self.right_stimulus_intensity = new_right_stimulus_intensity
 
+        # the agent will observe the stimulus gradient at its eyes (state)
         state = self.stimulus_sensitivity * np.array([left_gradient, right_gradient])
+        
+        # the food is the stimulus concentration at the center of the body
         food = self.get_stimulus_concentration(self.position)
+
+        # punish agent for staying too long away from the food
         hunger = 1
+
+        # reward is a combination of food and funger
         reward = food - hunger
+
+        # end the episode when the time taken is too long
         if self.time > self.duration:
             done = True
         else:
             done = False
 
+        # or when the agent has found the food source
         distance = eucl_distance_np(self.stimulus_position, self.position)
-       # if distance < 5:
-          #  done = True
+        if distance < 5:
+            done = True
 
         self.time += 1/self.fs
         return state, reward, done
 
 
     def get_stimulus_concentration(self, location):
+        """
+        Get the concentration of the stimulus at a certain location
+
+        Arguments:
+        ----------
+        location: numpy array of length x
+            [x position, y position]
+
+        Returns:
+        ----------
+        stimulus_concentration: float
+
+        """
         distance = eucl_distance_np(self.stimulus_position, location)
         return  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distance)
 

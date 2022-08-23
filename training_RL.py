@@ -2,7 +2,7 @@
 # coding=utf-8
 # ==============================================================================
 # title           : training_RL.py
-# description     : train agents using the REINFORCE method
+# description     : train and evaluate agents using the REINFORCE method
 # author          : Nicolas Coucke
 # date            : 2022-08-16
 # version         : 1
@@ -18,7 +18,7 @@ from utils import symmetric_matrix, eucl_distance
 from agent import Agent
 
 from environment import Environment
-from agent_RL import Gina
+from agent_RL import Gina, Guido
 
 import time
 from matplotlib import animation
@@ -32,43 +32,57 @@ import torch.optim as optim
 from torch.distributions import Categorical
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-fs = 20
-duration = 30
-stimulus_position = [0, 0]
-stimulus_decay_rate = 0.01
-stimulus_scale = 10
-stimulus_sensitivity = 100
-starting_position = [0, -100]
-starting_orientation = 0
-movement_speed = 10
-agent_radius = 2
-agent_eye_angle = 45
-delta_orientation = 0.1*np.pi
-
-
+print(device)
 
 def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every):
+    """
+    Optimizes the parameters of a policy using the REINFORCE method
+
+    Arguments:
+    ----------
+    policy: object
+        An agent with a differentiable Pytorch architecture
+
+    optimizer: object
+        PyTorch optimization object
+
+    n_training_episodes: int
+
+    max_t: int
+        maximum steps within an episode
+
+    gamma: float
+        discount rate for rewards
+
+    Returns:
+    ----------
+    scores: list
+        the score for each episode
+
+    times: list
+        the times taken for each episode (when variable)   
+
+    """
     # Help us to calculate the score during the training
     scores_deque = deque(maxlen=max_t)
     scores = []
     times = []
+
     # loop through all episodes
     for i_episode in range(1, n_training_episodes+1):
         saved_log_probs = []
         rewards = []
 
-        #always start from a random position and orientation
-        starting_orientation = random.randrange(0, 360)
-        #position should always be at 100m distance
+        # always start from a random position and orientation
+        starting_orientation = random.uniform(0, 2*np.pi)
+
+        # start on a random point on the line going from 10 to 100m from center
         starting_position = np.array([0, -random.randrange(10, 100)])
 
-       # starting_orientation = 0
-       # starting_position =  np.array([0, -100])
-
+        # the environment keeps track of the agent's position
         state = env.reset(starting_position, starting_orientation)
 
-        # Line complete the whole episode
+        # Complete the whole episode
         for t in range(max_t):
             action, log_prob = policy.act(state)
             saved_log_probs.append(log_prob)
@@ -79,31 +93,31 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         scores_deque.append(sum(rewards))
         scores.append(sum(rewards))
         times.append(env.time)
-        ## calculate the discounts
+
+        # calculate the discounts
         discounts = [gamma**i for i in range(len(rewards)+1)]
 
-        ## calculate sum of discounted rewards
+        # calculate sum of discounted rewards
         R = sum([a*b for a,b in zip(discounts, rewards)])
-       # R = -env.time
-        # calculate total loss
+      
+        # calculate total loss 
+        # we actually want to do gradient ascent
+        # but it's easier to do descent in pytorch so we just add a minus
         policy_loss = []
         for log_prob in saved_log_probs:
-            policy_loss.append(-log_prob * R) # add minus before log prob
+            policy_loss.append(-log_prob * R) 
         policy_loss = torch.cat(policy_loss).sum()
       
-
         # update policy parameters
         optimizer.zero_grad()
         policy_loss.backward()
         optimizer.step()
         
-       # print("Episode " + str(i_episode))
-
         if i_episode % print_every == 0:
             print('Episode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_deque)))
             #print('Episode {}\tAverage Time: {:.2f}'.format(i_episode, np.mean(times)))
 
-            # plot the environment
+            # plot the environment with stimulus concentration
             N = 1000
             x = np.linspace(-150, 150, N)
             y = np.linspace(-150, 150, N)
@@ -115,7 +129,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
             plt.axis('scaled')
             plt.colorbar()
 
-            # plot the trajectory of the agant
+            # plot the trajectory of the agant in the environment
             i = 0
             x_prev = env.position_x[0]
             y_prev = env.position_y[0]
@@ -129,28 +143,43 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
             plt.xlim([-150, 150])
             plt.ylim([-150, 150])
             plt.show()
+
+            # also show how the scores have evolved
             plt.plot(scores)
             plt.show()
     return scores, times
 
 
+# define variables for environment
+fs = 30 # Hertz
+duration = 30 # Seconds
+stimulus_position = [0, 0] # m, m
+stimulus_decay_rate = 0.01 # in the environment
+stimulus_scale = 10 # in the environment
+stimulus_sensitivity = 100 # of the agent
+starting_position = [0, -100] 
+starting_orientation = 0 
+movement_speed = 10
+delta_orientation = 0.1*np.pi # turning speed
+agent_radius = 2
+agent_eye_angle = 45
+
+# create an environment object in which the agent will be trained
 env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
-state_space = 2 # two sensory readings 
-hidden_space = 6 # hidden nodes
-action_space = 3 # possible actions (left, right, forward)
+# create an agent as policy 
+# policy = Gina(device).to(device)
+policy = Guido(device, fs).to(device)
 
-policy = Gina(device, state_space, action_space, hidden_space).to(device)
+# variables for training
 learning_rate = 5e-3 #1e-2 #1e-4 
 optimizer = optim.Adam(policy.parameters(), learning_rate)
-
-
-n_training_episodes = 2000
+n_training_episodes = 1000
 max_t = duration * fs
 gamma = 1.0
-scores, times = reinforce(policy, optimizer, n_training_episodes, max_t,
-                   gamma, 2000)
 
-plt.plot(times)
-plt.show()
+# start training
+scores, times = reinforce(policy, optimizer, n_training_episodes, max_t,
+                   gamma, 50)
+
