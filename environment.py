@@ -60,7 +60,7 @@ class Environment():
         self.position_y = []
         return np.array([self.left_stimulus_intensity, self.right_stimulus_intensity])
 
-    def step(self, action):
+    def step(self, action, food_size):
         """action is moving right, moving left or continuing going forward """
 
         # execute action
@@ -82,8 +82,11 @@ class Environment():
 
         # get new state and reward
         left_eye_position, right_eye_position = self.eye_positions()
+
+
         new_left_stimulus_intensity = self.get_stimulus_concentration(left_eye_position)
         new_right_stimulus_intensity = self.get_stimulus_concentration(right_eye_position)
+
 
         # get the difference between previous and current stimulus intensity
         left_gradient = new_left_stimulus_intensity - self.left_stimulus_intensity
@@ -94,13 +97,15 @@ class Environment():
         self.right_stimulus_intensity = new_right_stimulus_intensity
 
         # the agent will observe the stimulus gradient at its eyes (state)
-        state = self.stimulus_sensitivity * np.array([left_gradient, right_gradient])
-        
+        state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) * self.fs
+        #state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])
+
+
         # the food is the stimulus concentration at the center of the body
         food = self.get_stimulus_concentration(self.position)
 
         # punish agent for staying too long away from the food
-        hunger = 1
+        hunger = 2
 
         # reward is a combination of food and funger
         reward = food - hunger
@@ -113,7 +118,8 @@ class Environment():
 
         # or when the agent has found the food source
         distance = eucl_distance_np(self.stimulus_position, self.position)
-        if distance < 5:
+        if distance < food_size:
+            reward = (self.duration - self.time) * self.stimulus_scale 
             done = True
 
         self.time += 1/self.fs

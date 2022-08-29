@@ -26,13 +26,17 @@ import tkinter as tk
 import random
 
 import torch
+import torch.cuda
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
+print(torch.version.cuda)
+print(torch.cuda.device_count())
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
+
 
 def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every):
     """
@@ -70,6 +74,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
 
     # loop through all episodes
     for i_episode in range(1, n_training_episodes+1):
+        food_size = 5 + 30 * (1 - (i_episode / n_training_episodes))
         saved_log_probs = []
         rewards = []
 
@@ -77,7 +82,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         starting_orientation = random.uniform(0, 2*np.pi)
 
         # start on a random point on the line going from 10 to 100m from center
-        starting_position = np.array([0, -random.randrange(10, 100)])
+        starting_position = np.array([0, -random.randrange(95, 105)])
 
         # the environment keeps track of the agent's position
         state = env.reset(starting_position, starting_orientation)
@@ -86,31 +91,53 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         for t in range(max_t):
             action, log_prob = policy.act(state)
             saved_log_probs.append(log_prob)
-            state, reward, done = env.step(action)
+            state, reward, done = env.step(action, food_size)
             rewards.append(reward)
             if done:
                 break 
         scores_deque.append(sum(rewards))
         scores.append(sum(rewards))
         times.append(env.time)
-
-        # calculate the discounts
-        discounts = [gamma**i for i in range(len(rewards)+1)]
-
-        # calculate sum of discounted rewards
-        R = sum([a*b for a,b in zip(discounts, rewards)])
+        print(env.time)
+        print(env.position)
       
+        
+        discounted_rewards = []
+        for t in range(len(rewards)):
+            Gt = 0 
+            pw = 0
+            for r in rewards[t:]:
+                Gt = Gt + gamma**pw * r
+                pw = pw + 1
+                discounted_rewards.append(Gt)
+        
+        discounted_rewards = torch.tensor(discounted_rewards)
+        discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
+
+
         # calculate total loss 
         # we actually want to do gradient ascent
         # but it's easier to do descent in pytorch so we just add a minus
-        policy_loss = []
-        for log_prob in saved_log_probs:
-            policy_loss.append(-log_prob * R) 
-        policy_loss = torch.cat(policy_loss).sum()
+        policy_gradient = []
+        for log_prob, Gt in zip(saved_log_probs, discounted_rewards):
+            policy_gradient.append(-log_prob * Gt)
+           
+         
+        # calculate the discounts
+        #discounts = [gamma**i for i in range(len(rewards)+1)]   
+        # calculate sum of discounted rewards
+        # R = sum([a*b for a,b in zip(discounts, rewards)])
+        # policy_loss = []
+        # i = 0
+        #for log_prob in saved_log_probs:
+        #    policy_loss.append(-log_prob * discounts[i]*rewards[i]) 
+        # policy_loss = torch.cat(policy_loss).sum()
       
         # update policy parameters
         optimizer.zero_grad()
-        policy_loss.backward()
+        #policy_loss.backward()
+        policy_gradient = torch.stack(policy_gradient).sum()
+        policy_gradient.backward()
         optimizer.step()
         
         if i_episode % print_every == 0:
@@ -124,7 +151,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
             xx, yy = np.meshgrid(x, y)
             xx, yy = np.meshgrid(x, y)
             zz = np.sqrt(xx**2 + yy**2)   
-            zs = stimulus_scale * np.exp( - stimulus_decay_rate * np.sqrt(zz))
+            zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
             plt.contourf(x, y, zs)
             plt.axis('scaled')
             plt.colorbar()
@@ -154,9 +181,9 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
 fs = 30 # Hertz
 duration = 30 # Seconds
 stimulus_position = [0, 0] # m, m
-stimulus_decay_rate = 0.01 # in the environment
+stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 100 # of the agent
+stimulus_sensitivity = 1 # of the agent
 starting_position = [0, -100] 
 starting_orientation = 0 
 movement_speed = 10
@@ -169,15 +196,15 @@ env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
 # create an agent as policy 
-# policy = Gina(device).to(device)
+#policy = Gina(device).to(device)
 policy = Guido(device, fs).to(device)
 
 # variables for training
-learning_rate = 5e-3 #1e-2 #1e-4 
+learning_rate = 0.01 #1e-2 #1e-4 
 optimizer = optim.Adam(policy.parameters(), learning_rate)
-n_training_episodes = 1000
+n_training_episodes = 200
 max_t = duration * fs
-gamma = 1.0
+gamma = 0.99
 
 # start training
 scores, times = reinforce(policy, optimizer, n_training_episodes, max_t,

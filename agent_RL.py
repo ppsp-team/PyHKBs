@@ -59,21 +59,57 @@ class Gina(nn.Module):
 class Guido(nn.Module):
     """
     An RL agent with HKB equations instead of neural network layers
+
+    Arguments
+    ---------
+    frequency: np or torch array of length 2
+        should be [sensory_frequency, motor_frequency]
+
+    phase_coupling: np or torch array of length 4
+        should be [a_sensory, a_ipsilateral, a_contralateral, a_motor]
+
+    k: int or float
+        the proportion of phase coupling vs anti-phase coupling
     """
 
-    def __init__(self, device, fs):
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1):
         # also execute base initialization of nn.Module
         super().__init__() 
 
+        # initialize the frequencies
+        if frequency.size == 0:
+            # random values if no input argument
+            self.frequency = nn.Parameter(torch.Tensor(2))
+            self.frequency = nn.init.uniform_(self.frequency, a = 0.3, b = 3)
+        else:
+            self.frequency = nn.Parameter(torch.tensor(frequency))
+
+
+        # initialize the 'a' phase coupling values
+        if phase_coupling.size == 0:
+            self.phase_coupling = nn.Parameter(torch.Tensor(4))
+            self.phase_coupling = nn.init.uniform_(self.phase_coupling, a = 0.1, b = 5)
+        else:
+            self.phase_coupling = nn.Parameter(torch.tensor(phase_coupling))
+
+        # initialize k
+        if k == -1:
+            # random values
+            self.k = nn.Parameter(torch.Tensor(1))
+            self.k = nn.init.uniform_(self.k, a = 1, b = 10)
+        else:
+            self.k = nn.Parameter(torch.tensor([float(k)]))
+            
+
         # layer to calculate the next phase of the oscillators
-        self.full_step_layer = FullStepLayer(fs)
+        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k)
 
         # layer to get the probabilities for each action
         self.softmax = nn.Softmax(dim=None)
         self.device = device
 
         # initialize phases
-        self.phases = torch.tensor([0, 0.3, 0.6, 1.4])
+        self.phases = torch.tensor([0., 0., 0., 0.])
         
 
     def forward(self, input):
@@ -83,21 +119,27 @@ class Guido(nn.Module):
         new_input = torch.zeros(4)
         new_input[0] = input[0]
         new_input[1] = input[1]
-
+        
+       
         # execute forward step of the oscillator phases
-        self.phases = self.full_step_layer(new_input, self.phases)
+        phase_difference = self.full_step_layer(new_input, self.phases)
+        self.phases += phase_difference 
         output_angle = self.phases[3] - self.phases[2]
         output_angle = output_angle % 2 * torch.pi 
+        a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
 
         # define probabilities for taking actions according to the phase angle
         # positive values make right turn more probable
-        prob_right = torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
+        #prob_right = #torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
 
-        # negative values make left turn more probable
-        prob_left = torch.heaviside(torch.sin(- output_angle / 4), torch.tensor([0.]))
+        # make probabilities by defining a cartoid centered around - 90 deg
+        prob_right = a * (1 - torch.sin(output_angle))
 
-        # absolute value makes forward less probable
-        prob_forward = torch.cos(output_angle / 4)
+        # centered around 90 deg
+        prob_left = a * (1 - torch.sin( - output_angle))
+
+        # acentered around 0 deg
+        prob_forward = a * (1 - torch.cos(torch.pi - output_angle))
 
         # transform output probabilities with softmax
         probs = torch.tensor([prob_right, prob_left, prob_forward])
@@ -115,6 +157,9 @@ class Guido(nn.Module):
         action = m.sample()
         return action.item(), m.log_prob(action)
 
+    def set_phases(self, chosen_phases):
+        self.phases = chosen_phases
+
 
 class FullStepLayer(nn.Module):
     """
@@ -122,12 +167,12 @@ class FullStepLayer(nn.Module):
     the phases of the oscillators at the next timestep 
     by solving the system of differential equations using the Runge-Kutta method
     """
-    def __init__(self, fs):
+    def __init__(self, fs, frequency, phase_coupling, k):
         super().__init__()
         self.fs = fs
         # initialize the runge kutta step layer that calculates the phase differences for each oscillator
         # we will pass the input and phases through this layer 4 times in order to execute the runge kutta method
-        self.runge_kutta_step = RungeKuttaStepLayer(fs)
+        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k)
 
     def forward(self, x, phases):
         k1 = self.runge_kutta_step.forward(x, phases) * (1/self.fs)
@@ -143,34 +188,39 @@ class RungeKuttaStepLayer(nn.Module):
     Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
     This layer is used sevaral times when using the Runge Kutta method
     """
-    def __init__(self, fs):
+    def __init__(self, fs, frequency, phase_coupling, k):
         super().__init__()
+        
+        
+        self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1]])
 
-        # we initialize the coupling matrices and frequencies within this layer
-        phase_coupling_matrix = torch.Tensor(4, 4)
-        self.phase_coupling_matrix = nn.Parameter(phase_coupling_matrix)
+        # create var for each coupling value for clarity
+        a_sens = phase_coupling[0]
+        a_ips = phase_coupling[1]
+        a_con = phase_coupling[2]
+        a_motor = phase_coupling[3]
 
-        anti_phase_coupling_matrix = torch.Tensor(4, 4)
-        self.anti_phase_coupling_matrix = nn.Parameter(anti_phase_coupling_matrix)
+        # we initialize couping matrix with the chosen weight
+        self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con],
+                                            [a_sens, 0, a_con, a_ips],
+                                            [a_ips, a_con, 0, a_motor],
+                                            [a_con, a_ips, a_motor, 0]])
 
-        frequencies = torch.Tensor(4)
-        self.frequencies = nn.Parameter(frequencies)
+        # the anti phase weights are proportional to the phase weights
+        self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
 
         # these layers will calculate the mutual influence of the oscillators
-        self.phase_layer = MutualInfluenceLayer(phase_coupling_matrix, torch.tensor([1]))
-        self.anti_phase_layer = MutualInfluenceLayer(anti_phase_coupling_matrix, torch.tensor([2]))
+        self.phase_layer = MutualInfluenceLayer(self.phase_coupling_matrix, torch.tensor([1]))
+        self.anti_phase_layer = MutualInfluenceLayer(self.anti_phase_coupling_matrix, torch.tensor([2]))
 
         self.fs = fs
-        # initialize parameters
-        nn.init.uniform_(phase_coupling_matrix, a = 0, b = 1)
-        nn.init.uniform_(anti_phase_coupling_matrix, a = 0, b = 1)
-        nn.init.uniform_(frequencies, a = 0, b = 2)
+        
 
 
     def forward(self, x, phases):
         # get the phase change for each oscillator
         # x is the sensory input to each oscillator
-        x =  self.frequencies + x - self.phase_layer(phases) - self.anti_phase_layer(phases)
+        x =  self.frequency_array + x - self.phase_layer(phases) - self.anti_phase_layer(phases)
         return x
 
 
