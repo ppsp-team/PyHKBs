@@ -67,10 +67,10 @@ class Environment():
         # execute action
         if action == 0:
             # turn right
-            self.orientation = self.orientation + self.delta_orientation
+            self.orientation = self.orientation + self.delta_orientation / self.fs
         elif action == 1:
             # turn left
-            self.orientation = self.orientation - self.delta_orientation
+            self.orientation = self.orientation - self.delta_orientation / self.fs
         #elif action == 2:
         #   keep moving forward
 
@@ -99,7 +99,7 @@ class Environment():
 
         # the agent will observe the stimulus gradient at its eyes (state)
         state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) * self.fs
-        #state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])
+       # state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])
 
 
         # the food is the stimulus concentration at the center of the body

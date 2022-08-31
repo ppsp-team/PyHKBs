@@ -135,25 +135,31 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
    policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
    approach_scores = []
    # do ten episodes for each parameter combination
-   fig, (ax1, ax2) = plt.subplots(1,2)
+   fig, (ax1, ax2, ax3) = plt.subplots(1,3)
    for i in range(n_episodes):
         # reset the environment 
       starting_orientation = random.uniform(0, 2*np.pi)
+     # starting_orientation = 0
       starting_position = np.array([0, -random.randrange(95, 105)])
       state = env.reset(starting_position, starting_orientation)
 
       # reset Guido
-      policy.reset(torch.tensor([0., 0., 0., 0.]))
+      policy.reset(torch.tensor([0., np.pi, 0, np.pi]))
       # Complete the whole episode
       start_distance = env.distance
+      input_values = np.zeros((2, 30 * 30))
+      phase_differences = np.zeros((4, 30 * 30))
       for t in range(duration * fs):
          action, log_prob = policy.act(state)
          state, reward, done = env.step(action, 10)
          if done:
                break 
+         input_values[:, t] = policy.input.cpu().detach().numpy()
+         phase_differences[:, t] = policy.phase_difference.cpu().detach().numpy() * env.fs
       end_distance = env.distance
       approach_score = 1 - (end_distance / start_distance)
       approach_scores.append(approach_score)
+
 
       # plot the trajectory of the agant in the environment
       i = 0
@@ -169,6 +175,15 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
       ax1.set_xlim([-150, 150])
       ax1.set_ylim([-150, 150])
 
+   ax3.plot(input_values[0, 2:], color = 'blue', linewidth = 0.5, linestyle = '--')
+   ax3.plot(input_values[1, 2:], color = 'lightblue', linewidth = 0.5, linestyle = '--')
+
+   ax3.plot(phase_differences[0, 2:], color = 'blue')
+   ax3.plot(phase_differences[1, 2:], color = 'lightblue')
+
+   ax3.plot(phase_differences[2, 2:], color = 'green')
+   ax3.plot(phase_differences[3, 2:], color = 'lightgreen')
+   
 
    # plot the environment with stimulus concentration
    N = 1000
@@ -280,11 +295,11 @@ duration = 30 # Seconds
 stimulus_position = [0, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 1 # of the agent
+stimulus_sensitivity = 5 # of the agent
 starting_position = [0, -100] 
 starting_orientation = 0 
 movement_speed = 10
-delta_orientation = 0.1*np.pi # turning speed
+delta_orientation = 0.5*np.pi # rad/s turning speed
 agent_radius = 2
 agent_eye_angle = 45
 
@@ -295,14 +310,14 @@ env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
 
 
 # define the parameters for the grid search
-sensitivity_range = [1.] #np.arange(0.5, 10, 0.5)
+sensitivity_range = [10] #np.arange(0.5, 10, 0.5)
 k_range = [5.] #np.arange(1, 10, 1)
 f_sens_range = [2.] #np.arange(0.3, 3, 0.3)
 f_motor_range = [1.5] #np.arange(0.3, 3, 0.3)
-a_sens_range = [1.] # np.arange(0.5, 5, 0.5)
+a_sens_range = [0.05] # np.arange(0.5, 5, 0.5)
 a_ips_range =  np.arange(0.5, 5, 0.5)
-a_con_range =  np.arange(0.5, 5, 0.5)
-a_motor_range = [1.] #  np.arange(0.5, 5, 0.5)
+a_con_range =  np.arange(0.1, 1, 0.1)
+a_motor_range = [0.05] #  np.arange(0.5, 5, 0.5)
 
 
 # execute the grid search
@@ -315,17 +330,17 @@ with open(r"GridSearchResults.pickle", "rb") as input_file:
     grid_results = pickle.load(input_file)
 
 # visualize the grid search results
-other_parameters = {"sensitivity": 1, "k": 5, "f_sens": 2, "f_motor": 1.5, "a_sens": 1, "a_ips": 1, "a_con": 1, "a_motor": 1}
-visualize_grid_search(grid_results, "a_ips", "a_con", other_parameters)
+other_parameters = {"sensitivity": 1, "k": 5., "f_sens": 2., "f_motor": 1.5, "a_sens": 0.05, "a_ips": 1, "a_con": 1, "a_motor": 0.05}
+#visualize_grid_search(grid_results, "a_ips", "a_con", other_parameters)
 
 # evaluate a specific combination of parameters
-sensitivity = 1
+sensitivity = 10
 k = 5
-f_sens = 2
+f_sens = 2.
 f_motor = 1.5
-a_sens = 1
-a_ips = 2.0
-a_con = 2.5
-a_motor = 1
-n_episodes = 10
+a_sens = 0.1
+a_ips = 2
+a_con = 0.5
+a_motor = 0.1
+n_episodes = 1
 evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor)

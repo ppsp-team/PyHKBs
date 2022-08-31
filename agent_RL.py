@@ -115,17 +115,18 @@ class Guido(nn.Module):
     def forward(self, input):
         # transform  input to two eyes into a vector 
         # with one value per oscillator
-        input = torch.squeeze(input)
+        self.input = torch.squeeze(input)
         new_input = torch.zeros(4)
-        new_input[0] = input[0]
-        new_input[1] = input[1]
+        new_input[0] = self.input[0]
+        new_input[1] = self.input[1]
         
-       
+        
         # execute forward step of the oscillator phases
-        phase_difference = self.full_step_layer(new_input, self.phases)
-        self.phases += phase_difference 
+        self.phase_difference = self.full_step_layer(new_input, self.phases)
+        self.phases += self.phase_difference 
+
         output_angle = self.phases[3] - self.phases[2]
-        output_angle = output_angle % 2 * torch.pi 
+        output_angle = output_angle # % 2 * torch.pi 
         a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
 
         # define probabilities for taking actions according to the phase angle
@@ -143,6 +144,7 @@ class Guido(nn.Module):
 
         # transform output probabilities with softmax
         probs = torch.tensor([prob_right, prob_left, prob_forward])
+       # print(probs)
         probs = torch.unsqueeze(probs, 0)
         probs.requires_grad = True
         return F.softmax(probs, dim=1)
