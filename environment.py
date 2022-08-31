@@ -14,7 +14,7 @@
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from utils import symmetric_matrix, eucl_distance_np
+from utils import eucl_distance, symmetric_matrix, eucl_distance_np
 from agent import Agent
 import time
 from matplotlib import animation
@@ -58,6 +58,7 @@ class Environment():
         self.time = 0
         self.position_x = []
         self.position_y = []
+        self.distance = eucl_distance_np(self.stimulus_position, self.position)
         return np.array([self.left_stimulus_intensity, self.right_stimulus_intensity])
 
     def step(self, action, food_size):
@@ -117,8 +118,8 @@ class Environment():
             done = False
 
         # or when the agent has found the food source
-        distance = eucl_distance_np(self.stimulus_position, self.position)
-        if distance < food_size:
+        self.distance = eucl_distance_np(self.stimulus_position, self.position)
+        if self.distance < food_size:
             reward = (self.duration - self.time) * self.stimulus_scale 
             done = True
 
@@ -140,8 +141,8 @@ class Environment():
         stimulus_concentration: float
 
         """
-        distance = eucl_distance_np(self.stimulus_position, location)
-        return  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distance)
+        self.distance = eucl_distance_np(self.stimulus_position, location)
+        return  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)
 
 
     def eye_positions(self):

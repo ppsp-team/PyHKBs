@@ -157,8 +157,9 @@ class Guido(nn.Module):
         action = m.sample()
         return action.item(), m.log_prob(action)
 
-    def set_phases(self, chosen_phases):
+    def reset(self, chosen_phases):
         self.phases = chosen_phases
+        
 
 
 class FullStepLayer(nn.Module):
