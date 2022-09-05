@@ -110,7 +110,7 @@ class Guido(nn.Module):
 
         # initialize phases
         self.phases = torch.tensor([0., 0., 0., 0.])
-        
+        self.output_angle = self.phases[3] - self.phases[2]
 
     def forward(self, input):
         # transform  input to two eyes into a vector 
@@ -126,21 +126,26 @@ class Guido(nn.Module):
         self.phases += self.phase_difference 
 
         output_angle = self.phases[3] - self.phases[2]
-        output_angle = output_angle # % 2 * torch.pi 
+        self.output_angle = output_angle # % 2 * torch.pi 
         a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
 
         # define probabilities for taking actions according to the phase angle
         # positive values make right turn more probable
-        #prob_right = #torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
 
         # make probabilities by defining a cartoid centered around - 90 deg
-        prob_right = a * (1 - torch.sin(output_angle))
+        prob_left = a * (1 - torch.sin(output_angle))
 
         # centered around 90 deg
-        prob_left = a * (1 - torch.sin( - output_angle))
+        prob_right = a * (1 - torch.sin( - output_angle))
 
         # acentered around 0 deg
         prob_forward = a * (1 - torch.cos(torch.pi - output_angle))
+
+       # print(output_angle)
+        #prob_right = torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
+       # prob_left = torch.heaviside(- torch.sin(output_angle / 4), torch.tensor([0.]))
+       # prob_forward= torch.heaviside(torch.cos( output_angle / 4), torch.tensor([0.]))
+
 
         # transform output probabilities with softmax
         probs = torch.tensor([prob_right, prob_left, prob_forward])
@@ -156,8 +161,9 @@ class Guido(nn.Module):
         probs = self.forward(state).cpu()
         # pick an action
         m = Categorical(probs)
-        action = m.sample()
-        return action.item(), m.log_prob(action)
+        action = m.sample() # probabilistic policy
+        #action = torch.argmax(probs) # deterministic policy
+        return action.item(), m.log_prob(action), self.output_angle
 
     def reset(self, chosen_phases):
         self.phases = chosen_phases

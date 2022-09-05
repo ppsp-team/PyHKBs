@@ -65,7 +65,7 @@ for i in range(len(t)):
     agent_position_y[i] = agent_position[1]
 
 # visualize agent trajectory
-plt.plot(agent_position_x, agent_position_y)
+plt.plot(agent_position_x, agent_position_y, color = 'red')
 plt.scatter(stimulus_position[0], stimulus_position[1])
 plt.xlim([-100,100])
 plt.ylim([-100,100])

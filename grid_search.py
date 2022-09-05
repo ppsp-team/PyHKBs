@@ -37,12 +37,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 
-def perform_grid_search(env, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range):
-   n_episodes = 10
-   n_configurations = 10 * 10 #20 * 10 * 10**2 * 10**4 
+def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor):
+   n_configurations = 3**9 
    config = 1
-   grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips", "a_con", "a_motor", "performance"])
-
+   grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips", "a_con", "a_motor", "scaling_factor", "performance"])
+   starting_orientations = np.linspace(0, 2*np.pi, n_episodes)
+   print(starting_orientations)
    # loop through all parameter combinations
    for sensitivity in sensitivity_range:
       for k in k_range:
@@ -52,40 +52,45 @@ def perform_grid_search(env, sensitivity_range, k_range, f_sens_range, f_motor_r
                   for a_ips in a_ips_range:
                      for a_con in a_con_range:
                         for a_motor in a_motor_range:
-                           frequency = np.array([f_sens, f_motor])
-                           phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
-                           # create agent with these parameters
-                           policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
+                           for scale in connection_scaling_factor:
+                              frequency = np.array([f_sens, f_motor])
+                              phase_coupling = np.array([a_sens, a_con, a_ips, a_motor]) * scale
 
-                           # do ten episodes per parameter configuration
-                           approach_scores = []
-                           for episode in range(n_episodes):
-                              # reset the environment 
-                              starting_orientation = random.uniform(0, 2*np.pi)
-                              starting_position = np.array([0, -random.randrange(95, 105)])
-                              state = env.reset(starting_position, starting_orientation)
+                              # create agent with these parameters
+                              policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
 
-                              # reset Guido
-                              policy.reset(torch.tensor([0., 0., 0., 0.]))
+                              # do ten episodes per parameter configuration
+                              approach_scores = []
+                              for episode in range(n_episodes):
+                                 # reset the environment 
+
+                                 starting_orientation = random.uniform(0, 2*np.pi)
+                                 starting_position = np.array([0, -random.randrange(95, 105)])
+                                 state = env.reset(starting_position, starting_orientation)
+
+                                 # reset Guido
+                                 policy.reset(torch.tensor([0., 0., 0., 0.]))
+                                 
+                                 # Complete the whole episode
+                                 start_distance = env.distance
+                                 for t in range(duration * fs):
+                                    #action, log_prob = policy.act(state)
+                                    action, log_prob, output_angle = policy.act(state)
+                                    #state, reward, done = env.step(action, 10)
+                                    state, reward, done = env.step(output_angle.cpu().detach().numpy(), 10)
+                                    if done:
+                                          break 
+                                 end_distance = env.distance
+
+                                 approach_score = 1 - (end_distance / start_distance)
+                                 approach_scores.append(approach_score)
                               
-                              # Complete the whole episode
-                              start_distance = env.distance
-                              for t in range(duration * fs):
-                                 action, log_prob = policy.act(state)
-                                 state, reward, done = env.step(action, 10)
-                                 if done:
-                                       break 
-                              end_distance = env.distance
-
-                              approach_score = 1 - (end_distance / start_distance)
-                              approach_scores.append(approach_score)
-                           
-                           # save the average score for each episode
-                           performance = np.mean(approach_score)
-                           configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, performance],  index= grid_results.columns, name = config)
-                           grid_results = grid_results.append(configuration_result)
-                           print( "configuration " + str(config) + " of " + str(n_configurations))
-                           config+=1
+                              # save the average score for each episode
+                              performance = np.mean(approach_score)
+                              configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, scale, performance],  index= grid_results.columns, name = config)
+                              grid_results = grid_results.append(configuration_result)
+                              print( "configuration " + str(config) + " of " + str(n_configurations))
+                              config+=1
    # save the results
    with open(r"GridSearchResults.pickle", "wb") as output_file: 
       pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -99,26 +104,27 @@ def visualize_grid_search(grid_results, x_axis, y_axis, other_parameters):
       if not ( (key == x_axis) or (key == y_axis) ):
 
          # make subselection of fixed parameters
-         print(key)
-         print(grid_results[key] == other_parameters[key])
+        # print(key)
+         #print(grid_results[key] == other_parameters[key])
          grid_results = grid_results[grid_results[key] == other_parameters[key]]
 
    # for the other parameters, make a numpy array to plot
    x_axis_values = np.sort(np.unique(grid_results[x_axis].to_numpy()))
    y_axis_values = np.sort(np.unique(grid_results[y_axis].to_numpy()))
-   print()
    plotting_array = np.zeros((len(x_axis_values), len(y_axis_values)))
 
    
    for x in range(len(x_axis_values)):
       for y in range(len(y_axis_values)):
          plot_val = grid_results[grid_results[x_axis] == x_axis_values[x]]
+         print(plot_val)
          plot_val = plot_val[grid_results[y_axis] == y_axis_values[y]]
+         print(plot_val)
          plotting_array[x, y] = float(plot_val.performance.to_numpy())
 
 
-   plt.xticks(np.arange(0, 9, 1), x_axis_values)
-   plt.yticks(np.arange(0, 9, 1), y_axis_values)
+   plt.xticks(np.arange(0, len(x_axis_values), 1), x_axis_values)
+   plt.yticks(np.arange(0, len(y_axis_values), 1), y_axis_values)
    plt.xlabel(x_axis)
    plt.ylabel(y_axis)
    plt.imshow(plotting_array)
@@ -135,27 +141,39 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
    policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
    approach_scores = []
    # do ten episodes for each parameter combination
-   fig, (ax1, ax2, ax3) = plt.subplots(1,3)
+   fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
    for i in range(n_episodes):
         # reset the environment 
       starting_orientation = random.uniform(0, 2*np.pi)
-     # starting_orientation = 0
+      starting_orientation = np.pi /4
       starting_position = np.array([0, -random.randrange(95, 105)])
+      starting_position = np.array([0, -100])
+
+
       state = env.reset(starting_position, starting_orientation)
 
       # reset Guido
-      policy.reset(torch.tensor([0., np.pi, 0, np.pi]))
+      #policy.reset(torch.tensor([0., np.pi, 0, np.pi]))
+      #policy.reset(torch.tensor(np.pi*np.random.rand(4)))
+      policy.reset(torch.tensor([0., 0., 0, 0.]))
+
       # Complete the whole episode
       start_distance = env.distance
-      input_values = np.zeros((2, 30 * 30))
-      phase_differences = np.zeros((4, 30 * 30))
+      input_values = np.zeros((2, fs * duration))
+      phase_differences = np.zeros((4, fs * duration))
+      actions = []
+      angles = []
       for t in range(duration * fs):
-         action, log_prob = policy.act(state)
-         state, reward, done = env.step(action, 10)
+         #action, log_prob = policy.act(state)
+         action, log_prob, output_angle = policy.act(state)
+         #state, reward, done = env.step(action, 10)
+         state, reward, done = env.step(output_angle.cpu().detach().numpy(), 10)
          if done:
                break 
          input_values[:, t] = policy.input.cpu().detach().numpy()
          phase_differences[:, t] = policy.phase_difference.cpu().detach().numpy() * env.fs
+         actions.append(env.orientation)
+         angles.append(policy.output_angle.cpu().detach().numpy())
       end_distance = env.distance
       approach_score = 1 - (end_distance / start_distance)
       approach_scores.append(approach_score)
@@ -167,7 +185,7 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
       y_prev = env.position_y[0]
       for x, y in zip(env.position_x, env.position_y):
          # later samples are more visible
-         a = 0.5*i/len(env.position_x)
+         a = 0.1 + 0.5*i/len(env.position_x)
          ax1.plot([x_prev, x], [y_prev, y], alpha = a, color = 'red')
          x_prev = x
          y_prev = y
@@ -175,14 +193,22 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
       ax1.set_xlim([-150, 150])
       ax1.set_ylim([-150, 150])
 
-   ax3.plot(input_values[0, 2:], color = 'blue', linewidth = 0.5, linestyle = '--')
-   ax3.plot(input_values[1, 2:], color = 'lightblue', linewidth = 0.5, linestyle = '--')
+   # plot influence of the input over the oscillator changes
+   ax3.plot(actions[2:len(actions)], color = 'orange')
 
-   ax3.plot(phase_differences[0, 2:], color = 'blue')
-   ax3.plot(phase_differences[1, 2:], color = 'lightblue')
+   ax3.plot(phase_differences[0, 2:len(angles)], color = 'blue')
+   ax3.plot(phase_differences[1, 2:len(angles)], color = 'lightblue')
 
-   ax3.plot(phase_differences[2, 2:], color = 'green')
-   ax3.plot(phase_differences[3, 2:], color = 'lightgreen')
+   ax3.plot(phase_differences[2, 2:len(angles)], color = 'green')
+   ax3.plot(phase_differences[3, 2:len(angles)], color = 'lightgreen')
+
+   ax3.plot(input_values[0, 2:len(angles)], color = 'blue', linewidth = 0.8, linestyle = '--')
+   ax3.plot(input_values[1, 2:len(angles)], color = 'lightblue', linewidth = 0.8, linestyle = '--')
+
+
+   # plot the output angle and actions
+   ax4.plot(angles)
+   ax4.plot(actions)
    
 
    # plot the environment with stimulus concentration
@@ -295,12 +321,12 @@ duration = 30 # Seconds
 stimulus_position = [0, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 5 # of the agent
+stimulus_sensitivity = 2 # of the agent
 starting_position = [0, -100] 
 starting_orientation = 0 
-movement_speed = 10
-delta_orientation = 0.5*np.pi # rad/s turning speed
-agent_radius = 2
+movement_speed = 20 #m/s
+delta_orientation = 0.2*np.pi # rad/s turning speed
+agent_radius = 5
 agent_eye_angle = 45
 
 
@@ -310,18 +336,30 @@ env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
 
 
 # define the parameters for the grid search
-sensitivity_range = [10] #np.arange(0.5, 10, 0.5)
-k_range = [5.] #np.arange(1, 10, 1)
-f_sens_range = [2.] #np.arange(0.3, 3, 0.3)
-f_motor_range = [1.5] #np.arange(0.3, 3, 0.3)
-a_sens_range = [0.05] # np.arange(0.5, 5, 0.5)
-a_ips_range =  np.arange(0.5, 5, 0.5)
-a_con_range =  np.arange(0.1, 1, 0.1)
-a_motor_range = [0.05] #  np.arange(0.5, 5, 0.5)
+sensitivity_range = [1., 5., 10.,] #np.arange(0.5, 10, 0.5)
+k_range = [1., 2., 5.,] #np.arange(1, 10, 1)
+f_sens_range = [1., 1.3, 1.6] #np.arange(0.3, 3, 0.3)
+f_motor_range = [1.] #np.arange(0.3, 3, 0.3)
+a_sens_range = [1., 2.5, 5.] # np.arange(0.5, 5, 0.5)
+a_ips_range = [1., 2.5, 5.]  #np.arange(0.5, 5, 0.5)
+a_con_range =  [1., 2.5, 5.]   #np.arange(0.1, 1, 0.1)
+a_motor_range = [1., 2.5, 5.]   #  np.arange(0.5, 5, 0.5)
 
 
+k_range = [1.]
+f_sens_range = [1.]
+f_motor_range = [1.]
+a_sens_range = [1.]
+a_ips_range = [1.]
+a_con_range =  [1.]
+a_motor_range = [1.]
+
+
+connection_scaling_factor = [0.01, 0.1, 1.]
+
+n_episodes = 10
 # execute the grid search
-#grid_results = perform_grid_search(env, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range)
+grid_results = perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
 
 
 
@@ -330,17 +368,17 @@ with open(r"GridSearchResults.pickle", "rb") as input_file:
     grid_results = pickle.load(input_file)
 
 # visualize the grid search results
-other_parameters = {"sensitivity": 1, "k": 5., "f_sens": 2., "f_motor": 1.5, "a_sens": 0.05, "a_ips": 1, "a_con": 1, "a_motor": 0.05}
-#visualize_grid_search(grid_results, "a_ips", "a_con", other_parameters)
+other_parameters = {"sensitivity": 1, "k": 1., "f_sens": 1., "f_motor": 1., "a_sens": 1., "a_ips": 1., "a_con": 1., "a_motor": 1., "scaling_factor": 1.}
+visualize_grid_search(grid_results, "sensitivity", "scaling_factor", other_parameters)
 
 # evaluate a specific combination of parameters
-sensitivity = 10
-k = 5
-f_sens = 2.
-f_motor = 1.5
-a_sens = 0.1
-a_ips = 2
+sensitivity = 2
+k = 5/2.
+f_sens = 1.
+f_motor = 1.
+a_sens = 0.25
+a_ips = 0.25
 a_con = 0.5
-a_motor = 0.1
+a_motor = 0.25
 n_episodes = 1
 evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor)
