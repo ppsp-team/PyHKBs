@@ -85,7 +85,7 @@ for i in range(len(t)):
     agent_phase_difference_1[i] = phase_differences[0] * fs
     agent_phase_difference_2[i] = phase_differences[1] * fs
 
-
+    
     # save agent position for visualization
     agent_position_x[i] = agent_position[0]
     agent_position_y[i] = agent_position[1]

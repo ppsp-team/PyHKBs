@@ -107,7 +107,7 @@ class Environment():
         right_gradient = self.get_stimulus_gradient(right_eye_position)
 
         # the agent will observe the stimulus gradient at its eyes (state)
-        state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) * self.fs
+        state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) #* self.fs
        # state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])
 
 
@@ -249,9 +249,8 @@ class Social_environment():
 
         states = []
         for i in range(n_agents):
-            new_list = []
-            self.position_x.append(new_list)
-            self.position_y.append(new_list)
+            self.position_x.append([])
+            self.position_y.append([])
             self.distances.append(eucl_distance_np(self.stimulus_position, self.agent_positions[i]))
             states.append(np.array([self.left_stimulus_intensity, self.right_stimulus_intensity]))
         return states
@@ -284,8 +283,11 @@ class Social_environment():
             self.agent_new_positions[i] = np.array(position) + np.array([np.sin(orientation)
             * self.movement_speed * (1/self.fs), np.cos(orientation) * self.movement_speed * (1/self.fs)])
 
+
+
             self.position_x[i].append(position[0])
             self.position_y[i].append(position[1])
+
 
             # get new state and reward
             left_eye_position, right_eye_position = self.eye_positions(self.agent_new_positions[i], self.agent_new_orientations[i])
@@ -297,7 +299,7 @@ class Social_environment():
             left_gradient = self.get_stimulus_gradient(left_eye_position)
             right_gradient = self.get_stimulus_gradient(right_eye_position)
 
-        
+            
             # the agent will observe the stimulus gradient at its eyes (state)
             state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) #* self.fs
             # state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])

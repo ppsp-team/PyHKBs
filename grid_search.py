@@ -194,7 +194,7 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
       ax1.set_ylim([-150, 150])
 
    # plot influence of the input over the oscillator changes
-   ax3.plot(actions[2:len(actions)], color = 'orange')
+   #ax3.plot(actions[2:len(actions)], color = 'orange')
 
    ax3.plot(phase_differences[0, 2:len(angles)], color = 'blue')
    ax3.plot(phase_differences[1, 2:len(angles)], color = 'lightblue')
@@ -321,9 +321,9 @@ duration = 30 # Seconds
 stimulus_position = [0, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 2 # of the agent
+stimulus_sensitivity = 20 # of the agent
 starting_position = [0, -100] 
-starting_orientation = 0 
+starting_orientation = 0.25*np.pi
 movement_speed = 20 #m/s
 delta_orientation = 0.2*np.pi # rad/s turning speed
 agent_radius = 5
@@ -372,13 +372,13 @@ other_parameters = {"sensitivity": 1, "k": 1., "f_sens": 1., "f_motor": 1., "a_s
 visualize_grid_search(grid_results, "sensitivity", "scaling_factor", other_parameters)
 
 # evaluate a specific combination of parameters
-sensitivity = 2
-k = 5/2.
+sensitivity = 10
+k = 1.
 f_sens = 1.
 f_motor = 1.
-a_sens = 0.25
-a_ips = 0.25
-a_con = 0.5
-a_motor = 0.25
+a_sens = 0.02
+a_ips = 0.02
+a_con = 0.08
+a_motor = 0.08
 n_episodes = 1
 evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor)

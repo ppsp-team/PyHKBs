@@ -43,20 +43,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 
-# define variables for environment
-fs = 30 # Hertz
-duration = 100 # Seconds
-stimulus_position = [0, 0] # m, m
-stimulus_decay_rate = 0.02 # in the environment
-stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 2 # of the agent
-starting_position = [0, -100] 
-starting_orientation = 0 
-movement_speed = 10 #m/s
-delta_orientation = 0.5*np.pi # rad/s turning speed
-agent_radius = 5
-agent_eye_angle = 45
-
 
 
 
@@ -89,7 +75,7 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
 
         # reset the agent phases
         for i in range(n_agents):
-            agents[i].reset(torch.tensor([0., 0., 0, np.pi]))
+            agents[i].reset(torch.tensor([0., 0., 0, 0]))
 
         # Complete the whole episode
         start_distance = np.mean(env.distances)
@@ -105,7 +91,7 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
                 action, log_prob, output_angle = agents[a].act(states[a])
 
                 actions.append(output_angle.cpu().detach().numpy())
-            
+
             # let all agents perform their next action in the environment
             states, rewards, done = env.step(actions, 10)
             if done:
@@ -119,24 +105,23 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
         end_distance = np.mean(env.distances)
         approach_score = 1 - (end_distance / start_distance)
         approach_scores.append(approach_score)
-
-
+    
+    cmap = plt.cm.get_cmap("magma")
     # plot the trajectory of all agents in the environment
     for i in range(n_agents):
-        agents[i].reset(torch.tensor([0., 0., 0, 0.]))
+        agents[i].reset(torch.tensor([0., 0., 0, (i+1)*0.2*np.pi]))
         x_prev = env.position_x[i][0]
         y_prev = env.position_y[i][0]
         t = 0
         for x, y in zip(env.position_x[i], env.position_y[i]):
             # later samples are more visible
             a = 0.1 + 0.5*t/len(env.position_x[i])
-            ax1.plot([x_prev, x], [y_prev, y], alpha = a, color = 'red')
+            ax1.plot([x_prev, x], [y_prev, y], alpha = a, color = cmap(i/n_agents))
             x_prev = x
             y_prev = y
             t+=1
         ax1.set_xlim([-150, 150])
         ax1.set_ylim([-150, 150])
-
 
 
     # for now, plot the inner states of only one agent
@@ -261,17 +246,35 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
     plt.show()
 
 
-sensitivity = 2
-k = 2
+
+# define variables for environment
+fs = 30 # Hertz
+duration = 30 # Seconds
+stimulus_position = [0, 0] # m, m
+stimulus_decay_rate = 0.02 # in the environment
+stimulus_scale = 10 # in the environment
+stimulus_sensitivity = 20 # of the agent
+starting_position = [0, -100] 
+starting_orientation = 0.25*np.pi
+movement_speed = 20 #m/s
+delta_orientation = 0.2*np.pi # rad/s turning speed
+agent_radius = 5
+agent_eye_angle = 45
+
+
+
+
+sensitivity = 20
+k = 5/2
 f_sens = 1.
 f_motor = 1.
-a_sens = 0.
-a_ips = 0.
-a_con = 0.5
-a_motor = 0.25
+a_sens = 0.02
+a_ips = 0.02
+a_con = 0.08
+a_motor = 0.08
 n_episodes = 1
 
-n_agents = 1
+n_agents = 5
 
 # create starting positions for agents
 starting_positions = [] 
@@ -279,7 +282,7 @@ starting_orientations = []
 
 for i in range(n_agents):
     starting_positions.append(np.array([0, -100]))
-    starting_orientations.append(0)
+    starting_orientations.append((i+1)*0.2*np.pi)
 
 env = Social_environment(fs, duration, stimulus_position, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
