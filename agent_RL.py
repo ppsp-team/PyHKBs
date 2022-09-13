@@ -277,3 +277,272 @@ class MutualInfluenceLayer(nn.Module):
         weighted_differences = torch.reshape(weighted_differences, (self.num_oscillators, self.num_oscillators))
         weighted_sums = torch.sum(weighted_differences, dim=1)
         return weighted_sums
+
+
+
+
+class SocialGuido(nn.Module):
+    """
+    An RL agent with HKB equations instead of neural network layers
+
+    Arguments
+    ---------
+    frequency: np or torch array of length 2
+        should be [sensory_frequency, motor_frequency]
+
+    phase_coupling: np or torch array of length 4
+        should be [a_sensory, a_ipsilateral, a_contralateral, a_motor]
+
+    k: int or float
+        the proportion of phase coupling vs anti-phase coupling
+    """
+
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, agent_coupling = -1, n_agents = 1, agent_id = 0):
+        # also execute base initialization of nn.Module
+        super().__init__() 
+
+        # initialize the frequencies
+        if frequency.size == 0:
+            # random values if no input argument
+            self.frequency = nn.Parameter(torch.Tensor(2))
+            self.frequency = nn.init.uniform_(self.frequency, a = 0.3, b = 3)
+        else:
+            self.frequency = nn.Parameter(torch.tensor(frequency))
+
+
+        # initialize the 'a' phase coupling values
+        if phase_coupling.size == 0:
+            self.phase_coupling = nn.Parameter(torch.Tensor(5))
+            self.phase_coupling = nn.init.uniform_(self.phase_coupling, a = 0.1, b = 5)
+        else:
+            self.phase_coupling = nn.Parameter(torch.tensor(phase_coupling))
+
+        # initialize k
+        if k == -1:
+            # random values
+            self.k = nn.Parameter(torch.Tensor(1))
+            self.k = nn.init.uniform_(self.k, a = 1, b = 10)
+        else:
+            self.k = nn.Parameter(torch.tensor([float(k)]))
+
+
+        # initialize agent coupling w
+        if agent_coupling == -1:
+            # random values
+            self.agent_coupling = nn.Parameter(torch.Tensor(1))
+            self.agent_coupling = nn.init.uniform_(self.k, a = 1, b = 10)
+        else:
+            self.agent_coupling = nn.Parameter(torch.tensor([float(agent_coupling)]))
+
+        # layer to calculate the next phase of the oscillators
+        self.social_full_step_layer = SocialFullStepLayer(fs, self.frequency, self.phase_coupling, self.k,  self.agent_coupling, n_agents, agent_id)
+
+        # layer to get the probabilities for each action
+        self.softmax = nn.Softmax(dim=None)
+        self.device = device
+
+        # initialize phases
+        self.phases = torch.tensor([0., 0., 0., 0., 0])
+        self.output_angle = self.phases[3] - self.phases[2]
+
+    def forward(self, input, angles, inter_agent_distances):
+        # transform  input to two eyes into a vector 
+        # with one value per oscillator
+        self.input = torch.squeeze(input)
+        new_input = torch.zeros(5)
+        new_input[0] = self.input[0]
+        new_input[1] = self.input[1]
+
+        self.angles = torch.squeeze(angles)
+        
+        self.inter_agent_distances = torch.squeeze(inter_agent_distances)
+        # execute forward step of the oscillator phases
+        self.phase_difference = self.social_full_step_layer(new_input, self.phases, self.angles, self.inter_agent_distances)
+        self.phases += self.phase_difference 
+
+        output_angle = self.phases[2] - self.phases[3]
+        #print(output_angle)
+
+        self.output_angle = output_angle # % 2 * torch.pi 
+        a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
+
+        # define probabilities for taking actions according to the phase angle
+        # positive values make right turn more probable
+
+        # make probabilities by defining a cartoid centered around - 90 deg
+        prob_left = a * (1 - torch.sin(output_angle))
+
+        # centered around 90 deg
+        prob_right = a * (1 - torch.sin( - output_angle))
+
+        # acentered around 0 deg
+        prob_forward = a * (1 - torch.cos(torch.pi - output_angle))
+
+       # print(output_angle)
+        #prob_right = torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
+       # prob_left = torch.heaviside(- torch.sin(output_angle / 4), torch.tensor([0.]))
+       # prob_forward= torch.heaviside(torch.cos( output_angle / 4), torch.tensor([0.]))
+
+
+        # transform output probabilities with softmax
+        probs = torch.tensor([prob_right, prob_left, prob_forward])
+       # print(probs)
+        probs = torch.unsqueeze(probs, 0)
+        probs.requires_grad = True
+        return F.softmax(probs, dim=1)
+
+
+    def act(self, state, angles, inter_agent_distances):
+        # do forward pass (update update oscillator phases)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        angles = torch.from_numpy(angles).float().unsqueeze(0).to(self.device)
+        inter_agent_distances = torch.from_numpy(inter_agent_distances).float().unsqueeze(0).to(self.device)
+        probs = self.forward(state, angles, inter_agent_distances).cpu()
+        # pick an action
+        m = Categorical(probs)
+        action = m.sample() # probabilistic policy
+        #action = torch.argmax(probs) # deterministic policy
+        return action.item(), m.log_prob(action), self.output_angle
+
+    def reset(self, chosen_phases):
+        self.phases = chosen_phases
+        
+
+
+class SocialFullStepLayer(nn.Module):
+    """
+    Layer that, given the current phases and inputs, calculates 
+    the phases of the oscillators at the next timestep 
+    by solving the system of differential equations using the Runge-Kutta method
+    """
+    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_agents, agent_id):
+        super().__init__()
+        self.fs = fs
+        # initialize the runge kutta step layer that calculates the phase differences for each oscillator
+        # we will pass the input and phases through this layer 4 times in order to execute the runge kutta method
+        self.runge_kutta_step = SocialRungeKuttaStepLayer(fs, frequency, phase_coupling, k, agent_coupling, n_agents, agent_id)
+
+    def forward(self, x, phases, angles, inter_agent_distances):
+        k1 = self.runge_kutta_step.forward(x, phases, angles, inter_agent_distances) * (1/self.fs)
+        k2 = self.runge_kutta_step.forward(x, phases + 0.5 * k1, angles,  inter_agent_distances) * (1/self.fs)
+        k3 = self.runge_kutta_step.forward(x, phases + 0.5 * k2, angles,  inter_agent_distances)  * (1/self.fs)
+        k4 = self.runge_kutta_step.forward(x, phases + k3, angles, inter_agent_distances) * (1/self.fs)
+        phase_differences = (1/6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        return phase_differences
+
+
+class SocialRungeKuttaStepLayer(nn.Module):
+    """
+    Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
+    This layer is used sevaral times when using the Runge Kutta method
+    """
+    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_agents, agent_id):
+        super().__init__()
+
+        self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1], frequency[2]])
+
+        # create var for each coupling value for clarity
+        a_sens = phase_coupling[0]
+        a_ips = phase_coupling[1]
+        a_con = phase_coupling[2]
+        a_motor = phase_coupling[3]
+
+        a_soc_sens = phase_coupling[4]
+        a_soc_motor = phase_coupling[5]
+
+        # we initialize couping matrix with the chosen weight
+        self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con, a_soc_sens],
+                                            [a_sens, 0, a_con, a_ips, a_soc_sens],
+                                            [a_ips, a_con, 0, a_motor, a_soc_motor],
+                                            [a_con, a_ips, a_motor, 0, a_soc_motor],
+                                            [a_soc_sens, a_soc_sens, a_soc_motor, a_soc_motor, 0]])
+        
+        n_oscillators = self.phase_coupling_matrix.size(dim=0)
+
+        # the anti phase weights are proportional to the phase weights
+        self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
+
+        # these layers will calculate the mutual influence of the oscillators
+        self.phase_layer = MutualInfluenceLayer(self.phase_coupling_matrix, torch.tensor([1]))
+        self.anti_phase_layer = MutualInfluenceLayer(self.anti_phase_coupling_matrix, torch.tensor([2]))
+
+        # these layer will calculate social influence between agents
+        self.phase_social_layer = SocialInfluenceLayer(agent_coupling, torch.tensor([1]), agent_id, n_agents, n_oscillators)
+        anti_phase_agent_coupling = agent_coupling / k
+        self.anti_phase_social_layer = SocialInfluenceLayer(anti_phase_agent_coupling, torch.tensor([2]), agent_id, n_agents, n_oscillators)
+
+        self.fs = fs
+        
+
+
+    def forward(self, input, phases, angles,  inter_agent_distances):
+        # get the phase change for each oscillator
+        # x is the sensory input to each oscillator
+        output =  self.frequency_array + input - self.phase_layer(phases) - self.anti_phase_layer(phases) - self.phase_social_layer(angles,  inter_agent_distances) - self.anti_phase_social_layer(angles,  inter_agent_distances)
+        return output
+
+
+
+
+
+class SocialInfluenceLayer(nn.Module):
+    """
+    Pytorch layer that calculates the phase change for each oscillator in a network of mutually influencing oscillators
+
+    """
+    def __init__(self, coupling_weight, phase_multiplyer, agent_id, n_agents, n_oscillators):
+        """
+        Arguments:
+        ---------
+        coupling_matrix: torch.Tensor of dim (n_oscillators, n_oscillators)
+            contains the coupling weight for each pair of oscillators
+
+        phase_multiplyer: scalar 
+            1 for in-phase coupling
+            2 for anti-phase coupling
+
+        """
+        super().__init__()
+        self.coupling_weight = coupling_weight
+        self.phase_multiplyer = phase_multiplyer
+
+        # we will use this to get an array of the agent angles from which we can subtract the angles of the other agents
+        self.angle_filter = torch.zeros(n_agents, n_agents)
+        self.angle_filter[:, agent_id] = torch.ones(n_agents)
+
+        # we only want the social information to enter one of the oscillators
+        self.oscillator_filter = torch.zeros(n_oscillators)
+        self.oscillator_filter[4] = 1
+
+  
+
+    def forward(self, angles,  inter_agent_distances):
+        """
+        Arguments:
+        ---------
+        phases: torch.Tensor of dim n_oscillators
+            contains the phase of each oscillator in the previous timestep
+
+        Returns:
+        ---------
+        weighted_sums: torch.Tensor of dim n_oscillators
+            contains the phase change for each oscillators resulting from its (in/anti) phase coupling with the other oscillators
+
+        """ 
+        # calcultate the angle differences with the other agents
+        self_angles = torch.matmul(self.angle_filter, angles)
+        
+        angle_differencs = self.phase_multiplyer * (self_angles - angles)
+
+        distances = self.angle_filter * inter_agent_distances
+
+        # create proportional weighted sum
+        weighted_differences = self.coupling_weight * torch.exp( - 0.1 * distances ) * torch.sin(angle_differencs)
+        weighted_sum = torch.sum(weighted_differences)
+
+        # pass the sum to the correct oscillator
+        output = self.oscillator_filter * weighted_sum
+       
+        return output
+
+

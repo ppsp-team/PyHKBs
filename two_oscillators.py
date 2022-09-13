@@ -21,14 +21,14 @@ from matplotlib import animation
 duration = 10 #torch.as_tensor([10.])  # seconds
 fs = 100 #torch.as_tensor([100])  # Hertz
 
-initial_phase_1 = torch.as_tensor([torch.pi])  # Radians, initial phase of oscillator 1
+initial_phase_1 = torch.as_tensor([0.85*torch.pi])  # Radians, initial phase of oscillator 1
 initial_phase_2 = torch.as_tensor([0])  # Radians, initial phase of oscillator 2
 
-frequency_1 = torch.as_tensor([1.2])  # Hertz, intrinsic frequency of oscillator 1
-frequency_2 = torch.as_tensor([1.5])  # Hertz, intrinsic frequency of oscillator 2
+frequency_1 = torch.as_tensor([1.])  # Hertz, intrinsic frequency of oscillator 1
+frequency_2 = torch.as_tensor([1.])  # Hertz, intrinsic frequency of oscillator 2
 
-phase_coupling = torch.as_tensor([1])  # phase coupling
-anti_phase_coupling = torch.as_tensor([0])  # anti-phase coupling
+phase_coupling = torch.as_tensor([0.5])  # phase coupling
+anti_phase_coupling = torch.as_tensor([0.25])  # anti-phase coupling
 
 
 def HKBextended(t, phase):
@@ -113,4 +113,8 @@ def update_simulation(i):
 anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 20,
         blit = True)
 
+#writervideo = animation.FFMpegWriter(fps=30)
+anim.save('AntiPhaseLockedAnimation.gif')
 plt.show()
+
+plt.close()

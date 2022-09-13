@@ -1,6 +1,6 @@
 matplotlib
+seaborn
 torch
 torchdiffeq
-tkinter
-cmath
+scipy
 

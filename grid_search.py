@@ -37,7 +37,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 
-def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor):
+def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor):
    n_configurations = 3**9 
    config = 1
    grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips", "a_con", "a_motor", "scaling_factor", "performance"])
@@ -45,6 +45,10 @@ def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_rang
    print(starting_orientations)
    # loop through all parameter combinations
    for sensitivity in sensitivity_range:
+      # use the of certain sensitivity for all runs
+      env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
+         stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+
       for k in k_range:
          for f_sens in f_sens_range:
             for f_motor in f_motor_range:
@@ -55,7 +59,7 @@ def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_rang
                            for scale in connection_scaling_factor:
                               frequency = np.array([f_sens, f_motor])
                               phase_coupling = np.array([a_sens, a_con, a_ips, a_motor]) * scale
-
+                              print(phase_coupling)
                               # create agent with these parameters
                               policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
 
@@ -65,7 +69,9 @@ def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_rang
                                  # reset the environment 
 
                                  starting_orientation = random.uniform(0, 2*np.pi)
-                                 starting_position = np.array([0, -random.randrange(95, 105)])
+                                 starting_orientation = starting_orientations[episode]
+                                 #starting_position = np.array([0, -random.randrange(95, 105)])
+                                 starting_position = np.array([0, -100])
                                  state = env.reset(starting_position, starting_orientation)
 
                                  # reset Guido
@@ -81,12 +87,12 @@ def perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_rang
                                     if done:
                                           break 
                                  end_distance = env.distance
-
                                  approach_score = 1 - (end_distance / start_distance)
                                  approach_scores.append(approach_score)
+                                 print(approach_score)
                               
                               # save the average score for each episode
-                              performance = np.mean(approach_score)
+                              performance = np.nanmean(approach_score)
                               configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, scale, performance],  index= grid_results.columns, name = config)
                               grid_results = grid_results.append(configuration_result)
                               print( "configuration " + str(config) + " of " + str(n_configurations))
@@ -105,7 +111,7 @@ def visualize_grid_search(grid_results, x_axis, y_axis, other_parameters):
 
          # make subselection of fixed parameters
         # print(key)
-         #print(grid_results[key] == other_parameters[key])
+         print(grid_results[key] == other_parameters[key])
          grid_results = grid_results[grid_results[key] == other_parameters[key]]
 
    # for the other parameters, make a numpy array to plot
@@ -133,8 +139,9 @@ def visualize_grid_search(grid_results, x_axis, y_axis, other_parameters):
 
 
 
-def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor):
+def evaluate_parameters(n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor):
 
+   
    frequency = np.array([f_sens, f_motor])
    phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
    # create agent with these parameters
@@ -145,10 +152,12 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
    for i in range(n_episodes):
         # reset the environment 
       starting_orientation = random.uniform(0, 2*np.pi)
-      starting_orientation = np.pi /4
+      starting_orientation = 0
       starting_position = np.array([0, -random.randrange(95, 105)])
       starting_position = np.array([0, -100])
 
+      env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
+         stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
       state = env.reset(starting_position, starting_orientation)
 
@@ -161,6 +170,8 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
       start_distance = env.distance
       input_values = np.zeros((2, fs * duration))
       phase_differences = np.zeros((4, fs * duration))
+      phases = np.zeros((4, fs * duration))
+
       actions = []
       angles = []
       for t in range(duration * fs):
@@ -172,6 +183,8 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
                break 
          input_values[:, t] = policy.input.cpu().detach().numpy()
          phase_differences[:, t] = policy.phase_difference.cpu().detach().numpy() * env.fs
+         phases[:, t] = policy.phases.cpu().detach().numpy()
+
          actions.append(env.orientation)
          angles.append(policy.output_angle.cpu().detach().numpy())
       end_distance = env.distance
@@ -315,24 +328,129 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
    ax2.axis('scaled')
    plt.show()
 
+
+   # make simulation
+   
+
+   fig, (ax1, ax2) = plt.subplots(1, 2)
+   fig.set_size_inches(12,5)
+   # plot the environment with stimulus concentration
+   N = 1000
+   x = np.linspace(-150, 150, N)
+   y = np.linspace(-150, 150, N)
+   xx, yy = np.meshgrid(x, y)
+   xx, yy = np.meshgrid(x, y)
+   zz = np.sqrt(xx**2 + yy**2)   
+   zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
+   #zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
+   environment_plot = ax1.contourf(x, y, zs)
+   ax1.axis('scaled')
+   #ax1.set_title('Approach score = ' + str(np.mean(approach_scores)) )
+   plt.colorbar(environment_plot, ax=ax1)
+
+
+   trajectory, = ax1.plot(0, 0, color = 'red')
+
+   # phase difference between oscillators
+   ax2.set_xlim([-1.5, 1.5])
+   ax2.set_ylim([-1.5, 1.5])
+
+
+   oscillator1 = ax2.scatter(-1,1, s = 40, animated=True) 
+   oscillator2 = ax2.scatter(1,1, s = 40, animated=True)
+   oscillator3 = ax2.scatter(-1,-1, s = 40, animated=True)
+   oscillator4 = ax2.scatter(1,-1, s = 40, animated=True)
+   oscillators = [oscillator1, oscillator2, oscillator3, oscillator4]
+   line_1_2, = ax2.plot([-1, 1], [1, 1], color = 'grey')
+   line_1_3, = ax2.plot([-1, -1], [1, -1], color = 'grey')
+   line_1_4, = ax2.plot([-1, 1], [1, -1], color = 'grey')
+   line_2_3, = ax2.plot([1, -1], [1, -1], color = 'grey')
+   line_2_4, = ax2.plot([1, 1], [1, -1], color = 'grey')
+   line_3_4, = ax2.plot([-1, 1], [-1, -1], color = 'grey')
+   lines = [line_1_2, line_1_3, line_1_4, line_2_3, line_2_4, line_3_4]
+   line_oscillators = [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+
+   patch1 = plt.Circle((-1, 1), 0.4, fc='orange')
+   patch2 = plt.Circle((1, 1), 0.4, fc='orange')
+   patch3 = plt.Circle((-1, -1), 0.4, fc='blue')
+   patch4 = plt.Circle((1, -1), 0.4, fc='blue')
+   patches = [patch1, patch2, patch3, patch4]
+   ax2.add_patch(patch1)
+   ax2.add_patch(patch2)
+   ax2.add_patch(patch3)
+   ax2.add_patch(patch4)
+
+   ax2.set_title('Phase difference between oscillators')
+   
+   def update_simulation(i):
+      """
+      Function that is called by FuncAnimation at every timestep
+      updates the simulation by one timestep and updates the plots correspondingly
+      """
+      
+      trajectory.set_xdata(env.position_x[:i])
+      trajectory.set_ydata(env.position_y[:i])
+
+          # set the thickness of the edges to the phase differences between oscillators
+      for L in range(6):
+         between_oscillator = np.abs(phases[line_oscillators[L][0]-1, i] - phases[line_oscillators[L][1]-1, i]) % 2 * torch.pi
+         lines[L].set_linewidth(between_oscillator )
+
+      for O in range(4):
+         patches[O].radius = 0.1 + 0.02 * np.abs(phase_differences[O,i]) 
+
+         #offset = oscillators[O].get_offsets()[0]
+        # oscillators[O].set_offsets(offset[0], offset[1])
+         #oscillators[O].set_sizes(40 *np.abs(phase_differences[O,i]))
+
+
+      # line_1.set_xdata(t[:i])
+      #line_1.set_ydata(np.sin(phases_1[:i]))
+
+      #line_2.set_xdata(t[:i])
+      #line_2.set_ydata(np.sin(phases_2[:i]))
+
+      # blue = change of phases of motor 
+      # line_3.set_xdata(t[:i])
+      #line_3.set_ydata(agent_phase_difference_2[:i])
+
+      # blue = input data to sensor
+      # line_4.set_xdata(t[:i])
+      # line_4.set_ydata(agent_input[:i])
+
+
+      return trajectory, line_1_2, line_1_3, line_1_4, line_2_3, line_2_4, line_3_4, patch1, patch2, patch3, patch4
+
+
+   anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 40,
+         blit = True)
+
+   anim.save('GuidoSimulation.gif')
+   plt.show()
+
+   plt.close()
+
+
+
+
+
+
+
+
 # define variables for environment
-fs = 30 # Hertz
-duration = 30 # Seconds
+fs = 20 # Hertz
+duration = 20 # Seconds
 stimulus_position = [0, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
-stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 20 # of the agent
+stimulus_scale = 1 # in the environment
+stimulus_sensitivity = 5 # of the agent
 starting_position = [0, -100] 
-starting_orientation = 0.25*np.pi
-movement_speed = 20 #m/s
+starting_orientation = -0.25*np.pi
+movement_speed = 10 #m/s
 delta_orientation = 0.2*np.pi # rad/s turning speed
 agent_radius = 5
 agent_eye_angle = 45
 
-
-# use the same environment for all runs 
-env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
-     stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
 
 # define the parameters for the grid search
@@ -349,36 +467,39 @@ a_motor_range = [1., 2.5, 5.]   #  np.arange(0.5, 5, 0.5)
 k_range = [1.]
 f_sens_range = [1.]
 f_motor_range = [1.]
-a_sens_range = [1.]
-a_ips_range = [1.]
-a_con_range =  [1.]
-a_motor_range = [1.]
+a_sens_range = [0.02]
+a_ips_range = [0.02]
+a_con_range =  [0.08]
+a_motor_range = [0.08]
 
 
 connection_scaling_factor = [0.01, 0.1, 1.]
 
-n_episodes = 10
+n_episodes = 1
 # execute the grid search
-grid_results = perform_grid_search(env, n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
+#grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
 
 
 
 # open the grid search results 
-with open(r"GridSearchResults.pickle", "rb") as input_file:
-    grid_results = pickle.load(input_file)
+#with open(r"GridSearchResults.pickle", "rb") as input_file:
+   # grid_results = pickle.load(input_file)
 
 # visualize the grid search results
-other_parameters = {"sensitivity": 1, "k": 1., "f_sens": 1., "f_motor": 1., "a_sens": 1., "a_ips": 1., "a_con": 1., "a_motor": 1., "scaling_factor": 1.}
-visualize_grid_search(grid_results, "sensitivity", "scaling_factor", other_parameters)
+#other_parameters = {"sensitivity": 1, "k": 1., "f_sens": 1., "f_motor": 1., "a_sens": 0.02, "a_ips": 0.02, "a_con": 0.08, "a_motor": 0.08, "scaling_factor": 1.}
+#visualize_grid_search(grid_results, "sensitivity", "scaling_factor", other_parameters)
 
 # evaluate a specific combination of parameters
-sensitivity = 10
-k = 1.
-f_sens = 1.
-f_motor = 1.
-a_sens = 0.02
-a_ips = 0.02
-a_con = 0.08
-a_motor = 0.08
+sensitivity = 15.
+k = 5.
+f_sens = 0.
+f_motor = 0.
+a_sens = 0.05
+a_ips = 0.05
+a_con = 1.25
+a_motor = 0.5
 n_episodes = 1
-evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor)
+
+scaling = 1
+#for scaling in np.linspace(0.05, 2, 10):
+evaluate_parameters(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling)

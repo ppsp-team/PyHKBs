@@ -220,7 +220,7 @@ class Agent:
         #motor_phase_difference = np.exp(self.phases[2] - self.phases[3]) #% 2 * torch.pi 
 
         motor_phase_difference = np.angle(np.exp(1j * (self.phases[2].detach().numpy() - self.phases[3].detach().numpy()))) #% 2 * torch.pi 
-        self.orientation = self.orientation + torch.as_tensor(motor_phase_difference)
+        self.orientation = self.orientation + torch.as_tensor(motor_phase_difference) * np.random.random
 
         # calculate next position according to movement speed and new orientation
         self.position = self.position + torch.tensor([torch.sin(self.orientation)
@@ -330,9 +330,10 @@ class Agent_single_oscillator:
         # phase change of oscillator i due to intrinsic frequency
         phase_difference = torch.as_tensor([2 * torch.pi * self.frequencies[oscillator_number]])
 
+        self.sensor_stimulation = self.stimulus_sensitivity * 0.5 *(self.stimulus_change_left + self.stimulus_change_right)
         # include sensory input for the eyes
         if oscillator_number == 0: # sensor
-            phase_difference += self.stimulus_sensitivity * 0.5 *(self.stimulus_change_left + self.stimulus_change_right)
+            phase_difference += self.sensor_stimulation
       
         for other_oscillator_number in range(2): # loop through all oscillators j
 
@@ -445,12 +446,15 @@ class Agent_single_oscillator:
         # determine the new state of the agent
         self.phases, phase_differences  = self.runge_kutta_HKB(self.phases)
 
+    
+
         # change in orientation is proportional to phase difference between motor units
-        motor_phase_difference = self.phases[0] - self.phases[1] #% 2 * torch.pi 
+        motor_phase_difference = self.phases[1] - self.phases[0] % 2 * torch.pi 
+      #  print(motor_phase_difference)
         #motor_phase_difference = np.exp(self.phases[2] - self.phases[3]) #% 2 * torch.pi 
 
         motor_phase_difference = np.angle(np.exp(1j * (self.phases[0].detach().numpy() - self.phases[1].detach().numpy()))) #% 2 * torch.pi 
-        self.orientation = self.orientation + torch.as_tensor(motor_phase_difference)
+        self.orientation = self.orientation + torch.as_tensor(motor_phase_difference) * (1/self.fs)
 
         # calculate next position according to movement speed and new orientation
         self.position = self.position + torch.tensor([torch.cos(self.orientation)

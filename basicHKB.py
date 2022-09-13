@@ -20,8 +20,8 @@ from torchdiffeq import odeint
 
 # Generate parameters to plot phase space
 frequency_difference = 0.  # Hertz, difference between intrinsic frequencies; this can modify the "strength" of an attractor/repeller
-phase_coupling = 5.  # strength of in-phase coupling
-anti_phase_coupling = 4.  # strength of anti-phase coupling
+phase_coupling = 0 # strength of in-phase coupling
+anti_phase_coupling = 0  # strength of anti-phase coupling
 # higher values of b with respect to a lead to a larger stable region of anti-phase coupling 
 # (try setting a to 5 and varying b to 0,1,2,5)
 
@@ -35,14 +35,19 @@ def HKBextended(phase):
 
 
 # Visualization of the phase space and find fixed points
+plt.plot(phase_range, np.zeros((len(phase_range))), color = 'black', linewidth = 1)
+plt.plot(phase_range, HKBextended(phase_range))#, color = 'lightblue')
 for i in range(1, len(phase_range - 1)):
     # indicate attractors in green
     if (HKBextended(phase_range[i]) < 0) & (HKBextended(phase_range[i - 1]) > 0):
-        plt.scatter(phase_range[i], HKBextended(phase_range[i]), color='green')
+        plt.scatter(phase_range[i], HKBextended(phase_range[i]), color='green', s = 100)
     # indicate repellers in red
     elif (HKBextended(phase_range[i]) > 0) & (HKBextended(phase_range[i - 1]) < 0):
-        plt.scatter(phase_range[i], HKBextended(phase_range[i]), color='red')
-plt.plot(phase_range, HKBextended(phase_range))
+        plt.scatter(phase_range[i], HKBextended(phase_range[i]), color='red', s = 100)
+plt.xlabel("phase " + r'$\phi$')
+plt.ylabel("phase change " + r'$\dot{\phi}$')
+plt.xlim([-np.pi, 2*np.pi])
+plt.ylim([-3, 3])
 plt.show()
 
 
@@ -78,6 +83,8 @@ for i in np.linspace(0, 2 * np.pi, 20):
     initial_phase = torch.as_tensor([i])
     phase_time_series = odeint(HKBextended_torch, initial_phase, t)
     plt.plot(t, phase_time_series, color='blue')
+plt.xlabel("time (s)")
+plt.ylabel("phase " + r'$\phi$')
 
 # Visualization of the phase trajectory
 plt.ylim([0, 2 * np.pi])
