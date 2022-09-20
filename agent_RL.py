@@ -56,6 +56,51 @@ class Gina(nn.Module):
         return action.item(), m.log_prob(action)
 
 
+class MultipleGuidos(nn.Module):
+    """
+    A class to parallelize the feedforward run of multiple guido's interacting in the same environment
+
+    Arguments
+    --------- 
+    size: how many guidos
+    
+    other parameters are the same as basic Guido class
+    
+    """
+
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, size = 1):
+        # also execute base initialization of nn.Module
+        super().__init__() 
+        self.list_of_guidos = nn.ModuleList([Guido(device, fs, frequency, phase_coupling, k) for i in range(int(size))])
+
+        self.concatenated_guidos = torch.cat(self.list_of_guidos, dim=1)
+
+
+    def forward(self, input):
+        """
+        input: concatenated inputs of all the agents
+
+        output: the concatenated output angles of all the agents
+        """
+        return self.concatenated_guidos(input)
+
+    
+    def act(self, state):
+        """
+        state are the concatenated inputs of the agents
+
+        returns the output angles of all agents
+        """
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        output_angles = self.forward(state).cpu()
+      
+        return output_angles
+
+
+
+
+
+
 class Guido(nn.Module):
     """
     An RL agent with HKB equations instead of neural network layers
@@ -111,6 +156,7 @@ class Guido(nn.Module):
         # initialize phases
         self.phases = torch.tensor([0., 0., 0., 0.])
         self.output_angle = self.phases[3] - self.phases[2]
+
 
     def forward(self, input):
         # transform  input to two eyes into a vector 

@@ -14,9 +14,9 @@
 
 
 from utils import symmetric_matrix, eucl_distance
-from environment import Environment
+from environment import Environment, Social_environment
 from visualizations import single_agent_animation, plot_single_agent_run
-from agent_RL import Gina, Guido
+from agent_RL import Gina, Guido, MultipleGuidos
 
 import time
 import numpy as np
@@ -51,6 +51,8 @@ def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_
       # use the of certain sensitivity for all runs
       env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
          stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+      #env = Social_environment(fs, duration, stimulus_position, stimulus_decay_rate,
+        #stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio)
       for k in k_range:
          for f_sens in f_sens_range:
             for f_motor in f_motor_range:
@@ -61,16 +63,15 @@ def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_
                            for scale in connection_scaling_factor:
                               
                               # test performance of all parameters
-                              performance = evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, False)
-
+                              performance = evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens*scale, a_ips*scale, a_con*scale, a_motor*scale, False)
                               # save the average score for this configuration
                               configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, scale, performance],  index= grid_results.columns, name = config)
                               grid_results = grid_results.append(configuration_result)
                               print( "configuration " + str(config) + " of " + str(n_configurations))
                               config+=1
-   # save the results
-   with open(r"GridSearchResults.pickle", "wb") as output_file: 
-      pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+         # save the results every few runs
+         with open(r"GridSearchResults.pickle", "wb") as output_file: 
+            pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
    print("done")                          
    return grid_results
          
@@ -115,6 +116,7 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
    phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
    # create agent with these parameters
    policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
+
    approach_scores = []
    # do ten episodes for each parameter combination
    for i in range(n_episodes):
@@ -122,7 +124,7 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
       starting_orientation = random.uniform(0, 2*np.pi)
       starting_orientation = 0
       starting_position = np.array([0, -random.randrange(95, 105)])
-      starting_position = np.array([0, -100])
+      #starting_position = np.array([0, -100])
 
       state = env.reset(starting_position, starting_orientation)
 
@@ -163,6 +165,50 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
       
 
 
+def evaluate_parameters_concatenated(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, plot):
+   """
+   evaluate the parameters in a parallelized way
+   """
+   
+   frequency = np.array([f_sens, f_motor])
+   phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
+
+   # create an agent for each episode and concatenate them to parallelize
+   policy = MultipleGuidos(device, fs, frequency, phase_coupling, k, n_episodes).to(device)
+
+
+   # define a posiition/environment for each agent and initiate them in the environment
+   starting_positions = [] 
+   starting_orientations = []
+   orientations = np.random.uniform(- 0.25 * np.pi, 0.25 * np.pi, n_episodes)
+
+   start_distances = []
+   for a in range(n_episodes):
+      start_distance = np.random.uniform(-105, -95)
+      start_distances.append(start_distance)
+      starting_positions.append(np.array([0, start_distance ]))
+      starting_orientations.append(orientations[a])
+
+   # reset the environment (use multi-agent environment)
+   state = env.reset(starting_position, starting_orientation)
+
+   # run the all the episodes at the same time
+   for t in range(duration * fs):
+      output_angle = policy.act(state)
+      state, reward, done = env.step(output_angle.cpu().detach().numpy(), 10)
+      if done:
+            break 
+   end_distances = env.end_distances
+
+   approach_scores = []
+   for a in range(n_episodes):
+      approach_score = 1 - (end_distances[a] / start_distances[a])
+      approach_scores.append(approach_score)
+
+
+
+   return np.mean(approach_scores)
+
 
 # define variables for environment
 fs = 20 # Hertz
@@ -188,21 +234,11 @@ a_ips_range = [1., 2.5, 5.]  #np.arange(0.5, 5, 0.5)
 a_con_range =  [1., 2.5, 5.]   #np.arange(0.1, 1, 0.1)
 a_motor_range = [1., 2.5, 5.]   #  np.arange(0.5, 5, 0.5)
 
-
-k_range = [1.]
-f_sens_range = [1.]
-f_motor_range = [1.]
-a_sens_range = [0.02]
-a_ips_range = [0.02]
-a_con_range =  [0.08]
-a_motor_range = [0.08]
-
-
 connection_scaling_factor = [0.01, 0.1, 1.]
 
 n_episodes = 1
 # execute the grid search
-#grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
+grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
 
 # open the grid search results 
 #with open(r"GridSearchResults.pickle", "rb") as input_file:
@@ -221,8 +257,10 @@ a_sens = 0.05
 a_ips = 0.05
 a_con = 1.25
 a_motor = 0.5
-n_episodes = 1
+n_episodes = 10
 
 scaling = 1
 #for scaling in np.linspace(0.05, 2, 10):
-evaluate_parameters(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)
+
+#evaluate_parameters_concatenated(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, False)
+#evaluate_parameters(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)
