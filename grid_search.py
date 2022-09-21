@@ -39,7 +39,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor):
-   n_configurations = 3**9 
+   n_configurations = len(sensitivity_range)*len(k_range)*len(f_sens_range)*len(f_motor_range)*len(a_sens_range)*len(a_ips_range)*len(a_con_range)*len(a_motor_range)*len(connection_scaling_factor)
 
    # initialize dataframe to store results
    config = 1 
@@ -76,8 +76,24 @@ def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_
    return grid_results
          
 
+
+def evaluate_grid_search(grid_results):
+   """
+   look at parameters and find the ones that perform best
+   """
+
+   # find all values with a certain performance
+   grid_results = grid_results[grid_results["performance"] > 0.5]
+
+   with pd.option_context('display.max_rows', None,
+                        'display.precision', 3,
+                        ):
+      print(grid_results)
+
+
 def visualize_grid_search(grid_results, x_axis, y_axis, other_parameters):
-   # extract requested values, 
+   
+   # extract requested values
    for key in other_parameters:
       if not ( (key == x_axis) or (key == y_axis) ):
 
@@ -121,9 +137,8 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
    # do ten episodes for each parameter combination
    for i in range(n_episodes):
         # reset the environment 
-      starting_orientation = random.uniform(0, 2*np.pi)
-      starting_orientation = 0
-      starting_position = np.array([0, -random.randrange(95, 105)])
+      starting_orientation = random.uniform(-0.5*np.pi, 0.5*np.pi)
+      starting_position = np.array([0, -random.randrange(50, 100)])
       #starting_position = np.array([0, -100])
 
       state = env.reset(starting_position, starting_orientation)
@@ -161,7 +176,7 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
          # anim = single_agent_animation(env.position_x, env.position_y, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs)
          #anim.save('GuidoSimulation.gif')
 
-      return np.mean(approach_scores)
+   return np.mean(approach_scores)
       
 
 
@@ -225,42 +240,52 @@ agent_radius = 5
 agent_eye_angle = 45
 
 # define the parameters for the grid search
-sensitivity_range = [1., 5., 10.,] #np.arange(0.5, 10, 0.5)
-k_range = [1., 2., 5.,] #np.arange(1, 10, 1)
-f_sens_range = [1., 1.3, 1.6] #np.arange(0.3, 3, 0.3)
-f_motor_range = [1.] #np.arange(0.3, 3, 0.3)
-a_sens_range = [1., 2.5, 5.] # np.arange(0.5, 5, 0.5)
-a_ips_range = [1., 2.5, 5.]  #np.arange(0.5, 5, 0.5)
-a_con_range =  [1., 2.5, 5.]   #np.arange(0.1, 1, 0.1)
-a_motor_range = [1., 2.5, 5.]   #  np.arange(0.5, 5, 0.5)
+sensitivity_range = [5.]#[1., 5., 10.] #np.arange(1, 20, 1)
+k_range = [5.] #[1., 2., 5.,] #np.arange(1, 10, 1)
+f_sens_range = [1.]#[1., 1.3, 1.6] #np.arange(0.3, 3, 0.3)
+f_motor_range = [1.] #[1.] #np.arange(0.3, 3, 0.3)
+a_sens_range = np.arange(0.5, 5, 0.5)
+a_ips_range = np.arange(0.5, 5, 0.5)
+a_con_range =  np.arange(0.1, 1, 0.1)
+a_motor_range = np.arange(0.5, 5, 0.5)
 
-connection_scaling_factor = [0.01, 0.1, 1.]
+connection_scaling_factor = [0.1]#[0.01, 0.1, 1.]
 
-n_episodes = 1
+n_episodes = 50
 # execute the grid search
 grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
 
 # open the grid search results 
-#with open(r"GridSearchResults.pickle", "rb") as input_file:
-   # grid_results = pickle.load(input_file)
+with open(r"GridSearchResults_21_9.pickle", "rb") as input_file:
+   grid_results = pickle.load(input_file)
+evaluate_grid_search(grid_results)
 
 # visualize the grid search results
-#other_parameters = {"sensitivity": 1, "k": 1., "f_sens": 1., "f_motor": 1., "a_sens": 0.02, "a_ips": 0.02, "a_con": 0.08, "a_motor": 0.08, "scaling_factor": 1.}
-#visualize_grid_search(grid_results, "sensitivity", "scaling_factor", other_parameters)
+other_parameters = {"sensitivity": 5, "k": 5., "f_sens": 1., "f_motor": 1., "a_sens": 1., "a_ips": 1., "a_con": 5, "a_motor": 5, "scaling_factor": 0.1}
+#visualize_grid_search(grid_results, "a_con", "a_ips", other_parameters)
 
 # evaluate a specific combination of parameters
-sensitivity = 15.
+sensitivity = 5.
 k = 5.
-f_sens = 0.
-f_motor = 0.
-a_sens = 0.05
-a_ips = 0.05
-a_con = 1.25
-a_motor = 0.5
-n_episodes = 10
+f_sens = 1.
+f_motor = 1.
+a_sens = 1.
+a_ips = 5.
+a_con = 1.5
+a_motor = 5.
+n_episodes = 1
 
-scaling = 1
+scaling = 0.1
 #for scaling in np.linspace(0.05, 2, 10):
 
 #evaluate_parameters_concatenated(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, False)
-#evaluate_parameters(n_episodes, sensitivity, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)
+
+
+starting_orientation = random.uniform(-np.pi, np.pi)
+print(starting_orientation)
+starting_position = np.array([0, -random.randrange(95, 105)])
+
+env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
+   stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+
+#evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)

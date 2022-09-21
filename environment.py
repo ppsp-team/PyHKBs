@@ -130,9 +130,9 @@ class Environment():
 
         # or when the agent has found the food source
         self.distance = eucl_distance_np(self.stimulus_position, self.position)
-        if self.distance < food_size:
+        if self.distance < 5:
             reward = (self.duration - self.time) * self.stimulus_scale 
-           # done = True
+            done = True
 
         self.time += 1/self.fs
         return state, reward, done
