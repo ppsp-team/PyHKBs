@@ -173,7 +173,7 @@ def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_co
 
       if plot == True:
          fig = plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, env.position_x, env.position_y, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_decay_rate)
-         # anim = single_agent_animation(env.position_x, env.position_y, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs)
+         anim = single_agent_animation(env.position_x, env.position_y, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs)
          #anim.save('GuidoSimulation.gif')
 
    return np.mean(approach_scores)
@@ -253,7 +253,7 @@ connection_scaling_factor = [0.1]#[0.01, 0.1, 1.]
 
 n_episodes = 50
 # execute the grid search
-grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
+#grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
 
 # open the grid search results 
 with open(r"GridSearchResults_21_9.pickle", "rb") as input_file:
@@ -261,18 +261,18 @@ with open(r"GridSearchResults_21_9.pickle", "rb") as input_file:
 evaluate_grid_search(grid_results)
 
 # visualize the grid search results
-other_parameters = {"sensitivity": 5, "k": 5., "f_sens": 1., "f_motor": 1., "a_sens": 1., "a_ips": 1., "a_con": 5, "a_motor": 5, "scaling_factor": 0.1}
+other_parameters = {"sensitivity": 5, "k": 5., "f_sens": 1., "f_motor": 1., "a_sens": 0.5, "a_ips": 1.5, "a_con": 0.4, "a_motor": 0.5, "scaling_factor": 0.1}
 #visualize_grid_search(grid_results, "a_con", "a_ips", other_parameters)
 
 # evaluate a specific combination of parameters
 sensitivity = 5.
 k = 5.
-f_sens = 1.
-f_motor = 1.
-a_sens = 1.
-a_ips = 5.
-a_con = 1.5
-a_motor = 5.
+f_sens = 0.
+f_motor = 0.
+a_sens = 0.5
+a_ips = 1.5
+a_con = 0.4
+a_motor = 0.5
 n_episodes = 1
 
 scaling = 0.1
@@ -288,4 +288,4 @@ starting_position = np.array([0, -random.randrange(95, 105)])
 env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
    stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
-#evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)
+evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens*scaling, a_ips*scaling, a_con*scaling, a_motor*scaling, True)
