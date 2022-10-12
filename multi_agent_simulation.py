@@ -139,7 +139,7 @@ def evaluate_parameters(env, n_episodes, sensitivity, k, f_sens, f_motor, a_sens
 # define variables for environment
 fs = 20 # Hertz
 duration = 30 # Seconds
-stimulus_position = [0, 0] # m, m
+stimulus_position = [-100, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 10 # in the environment
 stimulus_sensitivity = 8 # of the agent
@@ -179,22 +179,22 @@ for i in range(n_agents):
     starting_positions.append(np.array([0, np.random.uniform(-105, -95)]))
     starting_orientations.append(orientations[i])
 
-#for flavour in range(3):
-if flavour == 1:
-    env = Social_environment(fs, duration, stimulus_position, stimulus_decay_rate,
-        stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio)
+for flavour in range(3):
+    if flavour == 1:
+        env = Social_environment(fs, duration, stimulus_position, stimulus_decay_rate,
+            stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio)
 
-elif flavour == 2:
-    agent_stimulus_scale = 0.2
-    agent_stimulus_decay_rate = 0.02
-    env = Social_stimulus_environment(fs, duration, stimulus_position, stimulus_decay_rate,
-        stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio)
+    elif flavour == 2:
+        agent_stimulus_scale = 0.2
+        agent_stimulus_decay_rate = 0.02
+        env = Social_stimulus_environment(fs, duration, stimulus_position, stimulus_decay_rate,
+            stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio)
 
-elif flavour == 0:
-    agent_stimulus_scale = 0
-    agent_stimulus_decay_rate = 0
-    env = Social_stimulus_environment(fs, duration, stimulus_position, stimulus_decay_rate,
-        stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio)
+    elif flavour == 0:
+        agent_stimulus_scale = 0
+        agent_stimulus_decay_rate = 0
+        env = Social_stimulus_environment(fs, duration, stimulus_position, stimulus_decay_rate,
+            stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio)
 
 evaluate_parameters(env, n_episodes, stimulus_sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, a_soc_sens, a_soc_motor, agent_coupling, n_agents, flavour, stimulus_ratio, True, False)
 

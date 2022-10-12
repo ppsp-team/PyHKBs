@@ -17,13 +17,21 @@ import numpy as np
 from utils import symmetric_matrix, eucl_distance
 from agent import Agent
 
-from environment import Environment
+from environment_RL import Environment
+#from environment import Environment
 from agent_RL import Gina, Guido
+import wandb
+import socket
+from pathlib import Path
+import sys
 
 import time
 from matplotlib import animation
 import tkinter as tk
 import random
+import os
+from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
+
 
 import torch
 import torch.cuda
@@ -36,6 +44,156 @@ print(torch.version.cuda)
 print(torch.cuda.device_count())
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
+
+agent = Guido
+batch_size = 10
+
+
+
+def train_one_epoch(agent, optimizer, env, max_t, gamma, print_every, batch_size):
+    # make some empty lists for logging.
+    batch_obs = []          # for observations
+    batch_acts = []         # for actions
+    batch_weights = []      # for R(tau) weighting in policy gradient
+    batch_rets = []         # for measuring episode returns
+    batch_lens = []         # for measuring episode lengths
+
+    # reset episode-specific variables
+    obs = env.reset()       # first obs comes from starting distribution
+    done = False            # signal from environment that episode is over
+    ep_rews = []            # list for rewards accrued throughout ep
+
+    # render first episode of each epoch
+    finished_rendering_this_epoch = False
+
+    # collect experience by acting in the environment with current policy
+    while True:
+
+        # rendering
+      #  if (not finished_rendering_this_epoch) and render:
+         #   env.render()
+
+        # save obs
+        batch_obs.append(obs.copy())
+
+        # act in the environment
+        action, logp  = agent.act(torch.as_tensor(obs, dtype=torch.float32))
+        obs, rew, done, _ = env.step(action)
+
+        # save action, reward
+        batch_acts.append(action)
+        ep_rews.append(rew)
+
+        if done:
+            # if episode is over, record info about episode
+            ep_ret, ep_len = sum(ep_rews), len(ep_rews)
+            batch_rets.append(ep_ret)
+            batch_lens.append(ep_len)
+
+            # the weight for each logprob(a|s) is R(tau)
+            batch_weights += [ep_ret] * ep_len
+
+            # reset episode-specific variables
+            obs, done, ep_rews = env.reset(), False, []
+
+            # won't render again this epoch
+            finished_rendering_this_epoch = True
+
+            # end experience loop if we have enough of it
+            if len(batch_obs) > batch_size:
+                break
+
+    # take a single policy gradient update step
+    optimizer.zero_grad()
+
+    # make loss function whose gradient, for the right data, is policy gradient
+    weights = torch.as_tensor(batch_weights, dtype=torch.float32)
+    batch_loss = -(logp * weights).mean()
+    batch_loss.backward()
+    optimizer.step()
+    return batch_loss, batch_rets, batch_lens
+
+
+
+def train_agent():
+
+
+
+# define variables for environment
+fs = 30 # Hertz
+duration = 30 # Seconds
+stimulus_position = [0, 0] # m, m
+stimulus_decay_rate = 0.02 # in the environment
+stimulus_scale = 10 # in the environment
+stimulus_sensitivity = 1 # of the agent
+starting_position = [0, -100] 
+starting_orientation = 0 
+movement_speed = 10
+delta_orientation = 0.3*np.pi # turning speed
+agent_radius = 2
+agent_eye_angle = 45
+
+
+
+
+def make_train_env(all_args):
+    def get_env_fn(rank):
+        def init_env():
+            if all_args.env_name == "Environment":
+                env = Environment(all_args)
+            else:
+                print("Can not support the " +
+                      all_args.env_name + " environment.")
+                raise NotImplementedError
+            env.seed(all_args.seed + rank * 1000)
+            return env
+        return init_env
+    if all_args.n_rollout_threads == 1:
+        return DummyVecEnv([get_env_fn(0)])
+    else:
+        return SubprocVecEnv([get_env_fn(i) for i in range(
+            all_args.n_rollout_threads)])
+
+
+#envs = make_train_env(fs, duration, stimulus_position, stimulus_decay_rate,
+    #stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+
+# create an environment object in which the agent will be trained
+env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
+     stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+
+# create an agent as policy 
+#policy = Gina(device).to(device)
+sensitivity = 10
+k = 5
+f_sens = 2.
+f_motor = 2
+a_sens = 0.1
+a_ips = 0.5
+a_con = 5
+a_motor = 0.2
+n_episodes = 10
+
+# initialize guido with good variables
+frequency = np.array([f_sens, f_motor])
+phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
+policy = Guido(device, fs, frequency , phase_coupling, k).to(device)
+#policy = Gina(device).to(device)
+
+# variables for training
+learning_rate = 0.01 #1e-2 #1e-4 
+optimizer = optim.Adam(policy.parameters(), learning_rate)
+n_training_episodes = 10
+max_t = duration * fs
+gamma = 0.99
+
+
+
+
+# start training
+#scores, times = reinforce(policy, optimizer, n_training_episodes, max_t,
+#                  gamma, 10)
+
 
 
 def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every):
@@ -180,52 +338,4 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
             plt.plot(scores)
             plt.show()
     return scores, times
-
-
-# define variables for environment
-fs = 30 # Hertz
-duration = 30 # Seconds
-stimulus_position = [0, 0] # m, m
-stimulus_decay_rate = 0.02 # in the environment
-stimulus_scale = 10 # in the environment
-stimulus_sensitivity = 1 # of the agent
-starting_position = [0, -100] 
-starting_orientation = 0 
-movement_speed = 10
-delta_orientation = 0.3*np.pi # turning speed
-agent_radius = 2
-agent_eye_angle = 45
-
-# create an environment object in which the agent will be trained
-env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
-     stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
-
-# create an agent as policy 
-#policy = Gina(device).to(device)
-sensitivity = 10
-k = 5
-f_sens = 2.
-f_motor = 2
-a_sens = 0.1
-a_ips = 0.5
-a_con = 5
-a_motor = 0.2
-n_episodes = 10
-
-# initialize guido with good variables
-frequency = np.array([f_sens, f_motor])
-phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
-policy = Guido(device, fs, frequency , phase_coupling, k).to(device)
-#policy = Gina(device).to(device)
-
-# variables for training
-learning_rate = 0.01 #1e-2 #1e-4 
-optimizer = optim.Adam(policy.parameters(), learning_rate)
-n_training_episodes = 10
-max_t = duration * fs
-gamma = 0.99
-
-# start training
-scores, times = reinforce(policy, optimizer, n_training_episodes, max_t,
-                   gamma, 10)
 

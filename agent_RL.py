@@ -118,7 +118,7 @@ class Guido(nn.Module):
         the proportion of phase coupling vs anti-phase coupling
     """
 
-    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, symmetric = True):
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, symmetric = True, n_oscillators = 4):
         # also execute base initialization of nn.Module
         super().__init__() 
 
@@ -148,7 +148,7 @@ class Guido(nn.Module):
             
 
         # layer to calculate the next phase of the oscillators
-        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k, symmetric)
+        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k, symmetric, n_oscillators)
 
         # layer to get the probabilities for each action
         self.softmax = nn.Softmax(dim=None)
@@ -223,12 +223,12 @@ class FullStepLayer(nn.Module):
     the phases of the oscillators at the next timestep 
     by solving the system of differential equations using the Runge-Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, symmetric):
+    def __init__(self, fs, frequency, phase_coupling, k, symmetric,  n_oscillators):
         super().__init__()
         self.fs = fs
         # initialize the runge kutta step layer that calculates the phase differences for each oscillator
         # we will pass the input and phases through this layer 4 times in order to execute the runge kutta method
-        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k, symmetric)
+        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k, symmetric,  n_oscillators)
 
     def forward(self, x, phases):
         k1 = self.runge_kutta_step.forward(x, phases) * (1/self.fs)
@@ -244,30 +244,46 @@ class RungeKuttaStepLayer(nn.Module):
     Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
     This layer is used sevaral times when using the Runge Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, symmetric):
+    def __init__(self, fs, frequency, phase_coupling, k, symmetric, n_oscillators):
         super().__init__()
         
-        
-        self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1]])
+        if  n_oscillators == 4:
+            self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1]])
+        else:
+            self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1], frequency[2]])
 
         # create var for each coupling value for clarity
         a_sens = phase_coupling[0]
-        a_ips = phase_coupling[1]
-        a_con = phase_coupling[2]
-        a_motor = phase_coupling[3]
+        a_ips_left = phase_coupling[1] # left sensor to left motor
+        a_ips_right = phase_coupling[2] # right sensor to right motor
+        a_con_left = phase_coupling[3] # starting from left sensor to right motor
+        a_con_right = phase_coupling[4] # starting from right sensor to left motor
+        a_motor = phase_coupling[5]
 
-        if symmetric == True:
+        if n_oscillators == 5:
+            a_soc_sens_left = phase_coupling[6]
+            a_soc_sens_right = phase_coupling[7]
+            a_soc_motor_left = phase_coupling[8]
+            a_soc_motor_right = phase_coupling[9]
+
+        if n_oscillators == 4:
             # we initialize couping matrix with the chosen weight
-            self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con],
-                                                    [a_sens, 0, a_con, a_ips],
-                                                    [a_ips, a_con, 0, a_motor],
-                                                    [a_con, a_ips, a_motor, 0]])
-
-            # the anti phase weights are proportional to the phase weights
-            self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
+            self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips_left, a_con_left],
+                                                    [a_sens, 0, a_con_right, a_ips_right],
+                                                    [a_ips_left, a_con_right, 0, a_motor],
+                                                    [a_con_left, a_ips_right, a_motor, 0]])
         else:
-            self.phase_coupling_matrix = a_sens * torch.rand(4, 4)
-            self.anti_phase_coupling_matrix = a_sens * torch.rand(4, 4) / k
+            # if there is a 5th oscillator also include the weights for that one
+             self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips_left, a_con_left, a_soc_sens_left],
+                                                    [a_sens, 0, a_con_right, a_ips_right, a_soc_sens_right],
+                                                    [a_ips_left, a_con_right, 0, a_motor, a_soc_motor_left],
+                                                    [a_con_left, a_ips_right, a_motor, 0, a_soc_motor_right],
+                                                    [a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right, 0]])
+
+
+        # the anti phase weights are proportional to the phase weights
+        self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
+
 
         # these layers will calculate the mutual influence of the oscillators
         self.phase_layer = MutualInfluenceLayer(self.phase_coupling_matrix, torch.tensor([1]))

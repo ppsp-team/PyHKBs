@@ -26,6 +26,10 @@ from matplotlib import animation
 import tkinter as tk
 import random
 import pickle
+import sys
+import argparse
+from tqdm import tqdm
+
 
 import torch
 import torch.cuda
@@ -37,40 +41,94 @@ from torch.distributions import Categorical
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+def complementary_connection(connection_strength, asymmetry_degree):
+   return (1 - connection_strength) * asymmetry_degree + (1 - asymmetry_degree) * connection_strength
 
-def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor):
-   n_configurations = len(sensitivity_range)*len(k_range)*len(f_sens_range)*len(f_motor_range)*len(a_sens_range)*len(a_ips_range)*len(a_con_range)*len(a_motor_range)*len(connection_scaling_factor)
+
+def perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, n_connectivity_variations, connection_scaling_factor, asymmetry_range, n_oscillators, environment, stimulus_ratio):
+   
+   
+   n_configurations = len(sensitivity_range)*len(k_range)*len(f_sens_range)*len(f_motor_range)*n_connectivity_variations*len(connection_scaling_factor)
 
    # initialize dataframe to store results
    config = 1 
-   grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips", "a_con", "a_motor", "scaling_factor", "performance"])
+   if n_oscillators == 4:
+      grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips_left", "a_ips_right", "a_con_left", "a_con_right", "a_motor", "scaling_factor", "asymmetry_degree", "start_distance", "start_orientation", "performance"])
+   else:
+      grid_results = pd.DataFrame(columns = ["sensitivity", "k", "f_sens", "f_motor", "f_soc", "a_sens", "a_ips_left", "a_ips_right", "a_con_left", "a_con_right", "a_motor", "a_soc_sens_left", "a_soc_sens_right", "a_soc_motor_left", "a_soc_motor_right", "scaling_factor", "asymmetry_degree", "start_distance", "start_orientation", "performance"])
+
    starting_orientations = np.linspace(0, 2*np.pi, n_episodes)
 
+   starting_distances = [20, 40, 60, 80, 100]
+   starting_orientations = [0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi]
+
+   if environment == "single_stimulus":
+      stimulus_positions = [np.array([0, 0])]
+      stimulus_ratio = 0
+   elif environment == "double_stimulus":
+      stimulus_positions = [np.array([-100, 0]), np.array([100, 0])]
+   else:
+      print('choose valid environment')
+
+   tq = tqdm(desc='grid_search_' + environment + '_' + str(n_oscillators), total = n_configurations)
    # loop through all parameter combinations
    for sensitivity in sensitivity_range:
       # use the of certain sensitivity for all runs
-      env = Environment(fs, duration, stimulus_position, stimulus_decay_rate,
+      env = Environment(fs, duration, stimulus_positions, stimulus_ratio, stimulus_decay_rate,
          stimulus_scale, sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
       #env = Social_environment(fs, duration, stimulus_position, stimulus_decay_rate,
         #stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio)
       for k in k_range:
          for f_sens in f_sens_range:
             for f_motor in f_motor_range:
-               for a_sens in a_sens_range:
-                  for a_ips in a_ips_range:
-                     for a_con in a_con_range:
-                        for a_motor in a_motor_range:
-                           for scale in connection_scaling_factor:
-                              
-                              # test performance of all parameters
-                              performance = evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens*scale, a_ips*scale, a_con*scale, a_motor*scale, False)
-                              # save the average score for this configuration
-                              configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, scale, performance],  index= grid_results.columns, name = config)
+               for variation in range(n_connectivity_variations):
+                  for scale in connection_scaling_factor:
+                     for asymmetry_degree in asymmetry_range:
+                        # make random variables for connectivities:
+                        a_ips_left = np.random.uniform()
+                        a_ips_right = complementary_connection(a_ips_left, asymmetry_degree)
+
+                        a_con_left = np.random.uniform()
+                        a_con_right = complementary_connection(a_con_left, asymmetry_degree)
+
+                        a_sens = np.random.uniform()
+                        a_motor = np.random.uniform()
+
+                        if n_oscillators == 5:
+                           # also determine connections to the 5th oscillator
+                           a_soc_sens_left = np.random.uniform()
+                           a_soc_sens_right = complementary_connection(a_soc_sens_left, asymmetry_degree)
+
+                           a_soc_motor_left = np.random.uniform()
+                           a_soc_motor_right = complementary_connection(a_soc_motor_left, asymmetry_degree)
+                           f_soc = f_motor
+
+                           intrinsic_frequencies = np.array([f_sens, f_motor, f_soc])
+                           coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor,
+                                       a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right])
+                        else:
+                           intrinsic_frequencies = np.array([f_sens, f_motor])
+                           coupling_weights = np.array([ a_sens*scale, a_ips_left*scale, a_ips_right*scale, a_con_left*scale, a_con_right*scale, a_motor*scale])
+
+                        # test performance of all parameters
+                        performances = evaluate_parameters(env, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, n_oscillators, False)
+                        # save the average score for this configuration
+                        i = 0
+                        for distance in starting_distances:
+                           for orientation in starting_orientations:
+                              performance = performances[i]
+                              if n_oscillators == 4:
+                                 configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor, scale, asymmetry_degree, distance, orientation, performance],  index= grid_results.columns, name = config)
+                              else:
+                                 configuration_result = pd.Series(data=[sensitivity, k, f_sens, f_motor, f_soc, a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor, a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right, scale, asymmetry_degree, distance, orientation, performance],  index= grid_results.columns, name = config)
+                              i+=1
                               grid_results = grid_results.append(configuration_result)
-                              print( "configuration " + str(config) + " of " + str(n_configurations))
-                              config+=1
+                        tq.update(1)
+                        #print( "configuration " + str(config) + " of " + str(n_configurations))
+                        config+=1
+
          # save the results every few runs
-         with open(r"GridSearchResults.pickle", "wb") as output_file: 
+         with open(r"GridSearchResults_asymmetric.pickle", "wb") as output_file: 
             pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
    print("done")                          
    return grid_results
@@ -125,59 +183,58 @@ def visualize_grid_search(grid_results, x_axis, y_axis, other_parameters):
 
 
 
-def evaluate_parameters(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, plot):
+def evaluate_parameters(env, starting_distances, starting_orientations, k, frequency, coupling_weights, n_oscillators, plot):
 
-   
-   frequency = np.array([f_sens, f_motor])
-   phase_coupling = np.array([a_sens, a_con, a_ips, a_motor])
+
+
    # create agent with these parameters
-   policy = Guido(device, fs, frequency, phase_coupling, k).to(device)
+   policy = Guido(device, fs, frequency, coupling_weights, k, n_oscillators).to(device)
 
-   approach_scores = []
+   approach_scores = []   
+
    # do ten episodes for each parameter combination
-   for i in range(n_episodes):
-        # reset the environment 
-      starting_orientation = random.uniform(-0.5*np.pi, 0.5*np.pi)
-      starting_position = np.array([0, -random.randrange(50, 100)])
-      #starting_position = np.array([0, -100])
+   for starting_distance in starting_distances:
+      for starting_orientation in starting_orientations:
+         
+         starting_position = np.array([0, -starting_distance])
 
-      state = env.reset(starting_position, starting_orientation)
+         state = env.reset(starting_position, starting_orientation)
 
-      # reset Guido
-      policy.reset(torch.tensor([0., 0., 0, 0.]))
+         # reset Guido
+         policy.reset(torch.tensor([0., 0., 0., 0.]))
 
-      # Complete the whole episode
-      start_distance = env.distance
-      input_values = np.zeros((2, fs * duration))
-      phase_differences = np.zeros((4, fs * duration))
-      phases = np.zeros((4, fs * duration))
+         # Complete the whole episode
+         start_distance = env.distance
+         input_values = np.zeros((2, fs * duration))
+         phase_differences = np.zeros((4, fs * duration))
+         phases = np.zeros((4, fs * duration))
 
-      actions = []
-      angles = []
-      for t in range(duration * fs):
-         #action, log_prob = policy.act(state)
-         action, log_prob, output_angle = policy.act(state)
-         #state, reward, done = env.step(action, 10)
-         state, reward, done = env.step(output_angle.cpu().detach().numpy(), 10)
-         if done:
-               break 
-         input_values[:, t] = policy.input.cpu().detach().numpy()
-         phase_differences[:, t] = policy.phase_difference.cpu().detach().numpy() * env.fs
-         phases[:, t] = policy.phases.cpu().detach().numpy()
+         actions = []
+         angles = []
+         for t in range(duration * fs):
+            #action, log_prob = policy.act(state)
+            action, log_prob, output_angle = policy.act(state)
+            #state, reward, done = env.step(action, 10)
+            state, reward, done = env.step(output_angle.cpu().detach().numpy(), 10)
+            if done:
+                  break 
+            input_values[:, t] = policy.input.cpu().detach().numpy()
+            phase_differences[:, t] = policy.phase_difference.cpu().detach().numpy() * env.fs
+            phases[:, t] = policy.phases.cpu().detach().numpy()
 
-         actions.append(env.orientation)
-         angles.append(policy.output_angle.cpu().detach().numpy())
-      end_distance = env.distance
-      approach_score = 1 - (end_distance / start_distance)
-      approach_scores.append(approach_score)
+            actions.append(env.orientation)
+            angles.append(policy.output_angle.cpu().detach().numpy())
+         end_distance = env.distance
+         approach_score = 1 - (end_distance / start_distance)
+         approach_scores.append(approach_score)
 
-      if plot == True:
-         fig = plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, env.position_x, env.position_y, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_decay_rate)
-         anim = single_agent_animation(env.position_x, env.position_y, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs)
-         #anim.save('GuidoSimulation.gif')
 
-   return np.mean(approach_scores)
-      
+         if plot == True:
+            fig = plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, env.position_x, env.position_y, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_decay_rate)
+            anim = single_agent_animation(env.position_x, env.position_y, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs)
+            #anim.save('GuidoSimulation.gif')
+
+   return approach_scores
 
 
 def evaluate_parameters_concatenated(env, n_episodes, k, f_sens, f_motor, a_sens, a_ips, a_con, a_motor, plot):
@@ -195,7 +252,7 @@ def evaluate_parameters_concatenated(env, n_episodes, k, f_sens, f_motor, a_sens
    # define a posiition/environment for each agent and initiate them in the environment
    starting_positions = [] 
    starting_orientations = []
-   orientations = np.random.uniform(- 0.25 * np.pi, 0.25 * np.pi, n_episodes)
+   orientations = [np.random.uniform(- 0.25 * np.pi, 0.25 * np.pi, n_episodes)]
 
    start_distances = []
    for a in range(n_episodes):
@@ -225,8 +282,9 @@ def evaluate_parameters_concatenated(env, n_episodes, k, f_sens, f_motor, a_sens
    return np.mean(approach_scores)
 
 
+
 # define variables for environment
-fs = 20 # Hertz
+fs = 50 # Hertz
 duration = 20 # Seconds
 stimulus_position = [0, 0] # m, m
 stimulus_decay_rate = 0.02 # in the environment
@@ -240,20 +298,38 @@ agent_radius = 5
 agent_eye_angle = 45
 
 # define the parameters for the grid search
-sensitivity_range = [5.]#[1., 5., 10.] #np.arange(1, 20, 1)
-k_range = [5.] #[1., 2., 5.,] #np.arange(1, 10, 1)
+sensitivity_range = [1.]#[1., 5., 10.] #np.arange(1, 20, 1)
+k_range = [5., 4., 2.]
 f_sens_range = [1.]#[1., 1.3, 1.6] #np.arange(0.3, 3, 0.3)
-f_motor_range = [1.] #[1.] #np.arange(0.3, 3, 0.3)
-a_sens_range = np.arange(0.5, 5, 0.5)
-a_ips_range = np.arange(0.5, 5, 0.5)
-a_con_range =  np.arange(0.1, 1, 0.1)
-a_motor_range = np.arange(0.5, 5, 0.5)
+f_motor_range = np.arange(0, 5, 1)
+connection_scaling_factor = np.arange(0.25, 5, 0.25)
+n_connectivity_variations = 100
+asymmetry_range = np.arange(0, 1, 0.1)
+n_episodes = 25
+n_oscillators = 4
+environment = "single_stimulus"
+stimulus_ratio = 0.8
 
-connection_scaling_factor = [0.1]#[0.01, 0.1, 1.]
+# extract variables from bash script
+if __name__ == "__main__":
+   parser = argparse.ArgumentParser(
+        description='grid_search', formatter_class=argparse.RawDescriptionHelpFormatter)
+   # prepare parameters
+   parser.add_argument("--environment", type=str,
+                        default='single_stimulus')
+   parser.add_argument("--n_oscillators", type=int,
+                     default=4)
+   all_args = parser.parse_known_args(sys.argv[1:])[0]
+  
+   environment = all_args.environment
+   n_oscillators = all_args.n_oscillators
 
-n_episodes = 50
+print(environment)
+print(n_oscillators)
+
+
 # execute the grid search
-#grid_results = perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, a_sens_range, a_ips_range, a_con_range, a_motor_range, connection_scaling_factor)
+perform_grid_search(n_episodes, sensitivity_range, k_range, f_sens_range, f_motor_range, n_connectivity_variations, connection_scaling_factor, asymmetry_range,  n_oscillators, environment, stimulus_ratio)
 
 # open the grid search results 
 with open(r"GridSearchResults_21_9.pickle", "rb") as input_file:

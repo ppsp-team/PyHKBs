@@ -30,23 +30,21 @@ import cmath
 
 class Environment():
 
-    def __init__(self, fs, duration, stimulus_position, stimulus_decay_rate,
+    def __init__(self, fs, duration, stimulus_positions, stimulus_ratio, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation):
         self.fs = fs
         self.duration = duration
-        self.stimulus_position = stimulus_position
+        self.stimulus_positions = stimulus_positions # list of 2-element arrays
+        self.stimulus_ratio = stimulus_ratio
         self.stimulus_decay_rate = stimulus_decay_rate
         self.stimulus_scale = stimulus_scale
         self.stimulus_sensitivity = stimulus_sensitivity
-        self.position = starting_position
-        self.orientation = starting_orientation
         self.movement_speed = movement_speed
         self.agent_radius = agent_radius
         self.agent_eye_angle = agent_eye_angle
-        self.right_stimulus_intensity = 0
-        self.left_stimulus_intensity = 0
         self.delta_orientation = delta_orientation
-        self.time = 0
+
+        self.reset(starting_position, starting_orientation)
 
 
 
@@ -60,7 +58,19 @@ class Environment():
         self.time = 0
         self.position_x = []
         self.position_y = []
-        self.distance = eucl_distance_np(self.stimulus_position, self.position)
+
+        # the first (left) stimulus is largest if the ratio is less than 1
+        # i.e. the ratio = stimulus_strenght_left / stimulus_strength_right
+        self.correct_position = self.stimulus_positions[0]
+        if len(self.stimulus_positions) > 1:
+            # if two stimulus
+            if self.stimulus_ratio > 1:
+                # if the right stimulus is larger
+                self.stimulus_positions[1]
+
+
+
+        self.distance = eucl_distance_np(self.correct_position, self.position)
         return np.array([self.left_stimulus_intensity, self.right_stimulus_intensity])
 
     def step(self, action, food_size):
@@ -129,7 +139,7 @@ class Environment():
             done = False
 
         # or when the agent has found the food source
-        self.distance = eucl_distance_np(self.stimulus_position, self.position)
+        self.distance = eucl_distance_np(self.correct_position, self.position)
         if self.distance < 5:
             reward = (self.duration - self.time) * self.stimulus_scale 
             done = True
@@ -152,7 +162,7 @@ class Environment():
         stimulus_concentration: float
 
         """
-        self.distance = eucl_distance_np(self.stimulus_position, location)
+        self.distance = eucl_distance_np(self.correct_position, location)
         return  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)
 
 
@@ -170,8 +180,16 @@ class Environment():
         stimulus_concentration: float
 
         """
-        self.distance = eucl_distance_np(self.stimulus_position, location)
-        return self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)
+
+        distances = []
+        for stimulus_position in self.stimulus_positions:
+            distances.append(eucl_distance_np(stimulus_position, location))
+
+        stimulus_gradient =  self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
+        if len(distances) < 1:
+            stimulus_gradient+= self.stimulus_ratio * stimulus_gradient
+
+        return stimulus_gradient
         #return self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)
 
 
@@ -317,7 +335,6 @@ class Social_environment():
             left_gradient = self.get_stimulus_gradient(left_eye_position)
             right_gradient = self.get_stimulus_gradient(right_eye_position)
 
-            
             # the agent will observe the stimulus gradient at its eyes (state)
             state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) #* self.fs
             # state = self.stimulus_sensitivity * np.array([new_left_stimulus_intensity, new_right_stimulus_intensity])

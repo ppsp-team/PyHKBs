@@ -3,4 +3,8 @@ seaborn
 torch
 torchdiffeq
 scipy
-wandb
+wandb==0.10.5
+websocket-client==0.53.0
+pathlib2==2.3.2
+tqdm 
+
