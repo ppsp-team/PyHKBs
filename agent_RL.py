@@ -25,6 +25,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
+from torch.distributions import Distribution
 
 
 
@@ -117,7 +118,7 @@ class Guido(nn.Module):
         the proportion of phase coupling vs anti-phase coupling
     """
 
-    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1):
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, symmetric = True):
         # also execute base initialization of nn.Module
         super().__init__() 
 
@@ -147,7 +148,7 @@ class Guido(nn.Module):
             
 
         # layer to calculate the next phase of the oscillators
-        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k)
+        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k, symmetric)
 
         # layer to get the probabilities for each action
         self.softmax = nn.Softmax(dim=None)
@@ -173,7 +174,7 @@ class Guido(nn.Module):
 
         output_angle = self.phases[3] - self.phases[2]
         self.output_angle = output_angle # % 2 * torch.pi 
-        a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
+        a = torch.sqrt(torch.tensor(1/(1 * torch.pi))) # corresponds to a cartoid with area of 1
 
         # define probabilities for taking actions according to the phase angle
         # positive values make right turn more probable
@@ -222,12 +223,12 @@ class FullStepLayer(nn.Module):
     the phases of the oscillators at the next timestep 
     by solving the system of differential equations using the Runge-Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k):
+    def __init__(self, fs, frequency, phase_coupling, k, symmetric):
         super().__init__()
         self.fs = fs
         # initialize the runge kutta step layer that calculates the phase differences for each oscillator
         # we will pass the input and phases through this layer 4 times in order to execute the runge kutta method
-        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k)
+        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k, symmetric)
 
     def forward(self, x, phases):
         k1 = self.runge_kutta_step.forward(x, phases) * (1/self.fs)
@@ -243,7 +244,7 @@ class RungeKuttaStepLayer(nn.Module):
     Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
     This layer is used sevaral times when using the Runge Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k):
+    def __init__(self, fs, frequency, phase_coupling, k, symmetric):
         super().__init__()
         
         
@@ -255,14 +256,18 @@ class RungeKuttaStepLayer(nn.Module):
         a_con = phase_coupling[2]
         a_motor = phase_coupling[3]
 
-        # we initialize couping matrix with the chosen weight
-        self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con],
-                                            [a_sens, 0, a_con, a_ips],
-                                            [a_ips, a_con, 0, a_motor],
-                                            [a_con, a_ips, a_motor, 0]])
+        if symmetric == True:
+            # we initialize couping matrix with the chosen weight
+            self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con],
+                                                    [a_sens, 0, a_con, a_ips],
+                                                    [a_ips, a_con, 0, a_motor],
+                                                    [a_con, a_ips, a_motor, 0]])
 
-        # the anti phase weights are proportional to the phase weights
-        self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
+            # the anti phase weights are proportional to the phase weights
+            self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
+        else:
+            self.phase_coupling_matrix = a_sens * torch.rand(4, 4)
+            self.anti_phase_coupling_matrix = a_sens * torch.rand(4, 4) / k
 
         # these layers will calculate the mutual influence of the oscillators
         self.phase_layer = MutualInfluenceLayer(self.phase_coupling_matrix, torch.tensor([1]))
@@ -410,29 +415,13 @@ class SocialGuido(nn.Module):
         #print(output_angle)
 
         self.output_angle = output_angle # % 2 * torch.pi 
-        a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
+        #a = torch.sqrt(torch.tensor(1/(6 * torch.pi))) # corresponds to a cartoid with area of 1
 
+        angles = torch.linspace(-torch.pi, torch.pi, 360)
+        probs = (1/(2*torch.pi)) * (1 - torch.cos(output_angle - torch.pi - angles))
         # define probabilities for taking actions according to the phase angle
         # positive values make right turn more probable
 
-        # make probabilities by defining a cartoid centered around - 90 deg
-        prob_left = a * (1 - torch.sin(output_angle))
-
-        # centered around 90 deg
-        prob_right = a * (1 - torch.sin( - output_angle))
-
-        # acentered around 0 deg
-        prob_forward = a * (1 - torch.cos(torch.pi - output_angle))
-
-       # print(output_angle)
-        #prob_right = torch.heaviside(torch.sin(output_angle / 4), torch.tensor([0.]))
-       # prob_left = torch.heaviside(- torch.sin(output_angle / 4), torch.tensor([0.]))
-       # prob_forward= torch.heaviside(torch.cos( output_angle / 4), torch.tensor([0.]))
-
-
-        # transform output probabilities with softmax
-        probs = torch.tensor([prob_right, prob_left, prob_forward])
-       # print(probs)
         probs = torch.unsqueeze(probs, 0)
         probs.requires_grad = True
         return F.softmax(probs, dim=1)
@@ -445,10 +434,11 @@ class SocialGuido(nn.Module):
         inter_agent_distances = torch.from_numpy(inter_agent_distances).float().unsqueeze(0).to(self.device)
         probs = self.forward(state, angles, inter_agent_distances).cpu()
         # pick an action
-        m = Categorical(probs)
-        action = m.sample() # probabilistic policy
-        #action = torch.argmax(probs) # deterministic policy
-        return action.item(), m.log_prob(action), self.output_angle
+        angles = torch.linspace(-torch.pi, torch.pi, 360)
+        index = probs.multinomial(num_samples=1, replacement=True)
+        action = angles[index]
+        log_prob = torch.log(probs[index])
+        return action.item(), log_prob, self.output_angle
 
     def reset(self, chosen_phases):
         self.phases = chosen_phases
