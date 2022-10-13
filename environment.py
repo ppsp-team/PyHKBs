@@ -66,7 +66,7 @@ class Environment():
             # if two stimulus
             if self.stimulus_ratio > 1:
                 # if the right stimulus is larger
-                self.stimulus_positions[1]
+                self.correct_position  = self.stimulus_positions[1]
 
 
 
@@ -88,7 +88,7 @@ class Environment():
 
         output_angle = np.sign(action) * np.angle(np.exp(1j*(action)))
        # orientation += output_angle  #np.sin(action)*self.delta_orientation / self.fs
-        self.orientation+= output_angle #self.orientation + action * (1/self.fs) #np.sin(action)*self.delta_orientation / self.fs
+        self.orientation += output_angle #self.orientation + action * (1/self.fs) #np.sin(action)*self.delta_orientation / self.fs
         self.position = self.position + np.array([np.sin(self.orientation)
         * self.movement_speed * (1/self.fs), np.cos(self.orientation) * self.movement_speed * (1/self.fs)])
 
@@ -102,17 +102,6 @@ class Environment():
         left_eye_position, right_eye_position = self.eye_positions()
 
 
-        new_left_stimulus_intensity = self.get_stimulus_concentration(left_eye_position)
-        new_right_stimulus_intensity = self.get_stimulus_concentration(right_eye_position)
-
-
-        # get the difference between previous and current stimulus intensity
-        left_gradient = new_left_stimulus_intensity - self.left_stimulus_intensity
-        right_gradient = new_right_stimulus_intensity - self.right_stimulus_intensity
-
-        # save the current intensity for the next iteration
-        self.left_stimulus_intensity = new_left_stimulus_intensity
-        self.right_stimulus_intensity = new_right_stimulus_intensity
 
         # get gradient directly
         left_gradient = self.get_stimulus_gradient(left_eye_position)
@@ -139,7 +128,11 @@ class Environment():
             done = False
 
         # or when the agent has found the food source
-        self.distance = eucl_distance_np(self.correct_position, self.position)
+        distances = []
+        for stimulus_position in self.stimulus_positions:
+            distances.append(eucl_distance_np(stimulus_position, self.position))
+        self.distance = np.min(distances)
+
         if self.distance < 5:
             reward = (self.duration - self.time) * self.stimulus_scale 
             done = True
@@ -162,8 +155,17 @@ class Environment():
         stimulus_concentration: float
 
         """
-        self.distance = eucl_distance_np(self.correct_position, location)
-        return  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)
+        distances = []
+        for stimulus_position in self.stimulus_positions:
+            distances.append(eucl_distance_np(stimulus_position, location))
+
+        stimulus_concentration =  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
+        if len(distances) < 1:
+            stimulus_concentration_1 =  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
+            stimulus_concentration_2 = self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[1])
+            stimulus_concentration = stimulus_concentration_1 + self.stimulus_ratio * stimulus_concentration_2
+
+        return stimulus_concentration
 
 
     def get_stimulus_gradient(self, location):
@@ -187,7 +189,9 @@ class Environment():
 
         stimulus_gradient =  self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
         if len(distances) < 1:
-            stimulus_gradient+= self.stimulus_ratio * stimulus_gradient
+            stimulus_gradient_1 =  self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
+            stimulus_gradient_2 = self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[1])
+            stimulus_gradient = stimulus_gradient_1 + self.stimulus_ratio * stimulus_gradient_2
 
         return stimulus_gradient
         #return self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * self.distance)

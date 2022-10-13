@@ -308,7 +308,7 @@ asymmetry_range = np.arange(0, 1, 0.1)
 n_episodes = 25
 n_oscillators = 4
 environment = "single_stimulus"
-stimulus_ratio = 0.8
+stimulus_ratio = 1
 
 # extract variables from bash script
 if __name__ == "__main__":
