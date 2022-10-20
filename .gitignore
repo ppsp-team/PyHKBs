@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+results/GridSearchResults_double_stimulus_4_1810.pickle
+results/GridSearchResults_double_stimulus_4.pickle
+results/GridSearchResults_double_stimulus_5_1810.pickle
+results/GridSearchResults_double_stimulus_5.pickle
+results/GridSearchResults_single_stimulus_4_1810.pickle
+results/GridSearchResults_single_stimulus_4.pickle
+results/GridSearchResults_single_stimulus_5_1810.pickle
+results/GridSearchResults_single_stimulus_5.pickle

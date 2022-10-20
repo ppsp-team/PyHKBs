@@ -96,7 +96,7 @@ def draw_anti_curve_vertical(p1, p2):
 
     return x, y
 
-def plot_connection_strenghts(ax, f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k):
+def plot_connection_strenghts(ax, f_sens, f_motor, coupling_values, k):
         
     # visualize the connection strengths
     # phase difference between oscillators
@@ -107,10 +107,18 @@ def plot_connection_strenghts(ax, f_sens, f_motor, a_sens, a_motor, a_ips, a_con
     pos3 = [-1.001, -1]
     pos4 = [1.001, -1.001]
 
-    oscillator1 = ax.scatter(-1,1, s = f_sens * 200, color = 'grey') 
-    oscillator2 = ax.scatter(1,1, s = f_sens * 200, color = 'grey')
-    oscillator3 = ax.scatter(-1,-1, s = f_motor * 200, color = 'grey')
-    oscillator4 = ax.scatter(1,-1, s = f_motor * 200, color = 'grey')
+
+    oscillator1 = ax.scatter(-1,1, s = f_sens * 200, color = 'blue') 
+    oscillator2 = ax.scatter(1,1, s = f_sens * 200, color = 'lightblue')
+    oscillator3 = ax.scatter(-1,-1, s = f_motor * 200, color = 'green')
+    oscillator4 = ax.scatter(1,-1, s = f_motor * 200, color = 'lightgreen')
+
+    a_sens = coupling_values[0]
+    a_ips_left = coupling_values[1]
+    a_ips_right = coupling_values[2]
+    a_con_left = coupling_values[3]
+    a_con_right = coupling_values[4]
+    a_motor = coupling_values[5]
 
     # in-phase curves
     # sensor and motor connections
@@ -121,15 +129,15 @@ def plot_connection_strenghts(ax, f_sens, f_motor, a_sens, a_motor, a_ips, a_con
 
     # ipsilateral connections
     x, y = draw_curve_vertical(pos1, pos3)
-    line_1_3, = ax.plot(x, y, color = 'blue', linewidth = a_ips)
+    line_1_3, = ax.plot(x, y, color = 'blue', linewidth = a_ips_left)
     x, y = draw_anti_curve_vertical(pos2, pos4)
-    line_2_4, = ax.plot(x, y, color = 'blue', linewidth = a_ips)
+    line_2_4, = ax.plot(x, y, color = 'blue', linewidth = a_ips_right)
 
     # contralateral connections
     x, y = draw_curve_horizontal(pos1, pos4)
-    line_1_4, = ax.plot(x, y, color = 'blue', linewidth = a_con)
+    line_1_4, = ax.plot(x, y, color = 'blue', linewidth = a_con_left)
     x, y = draw_anti_curve_horizontal(pos2, pos3)
-    line_2_3, = ax.plot(x, y, color = 'blue', linewidth = a_con)
+    line_2_3, = ax.plot(x, y, color = 'blue', linewidth = a_con_right)
 
     # anti-phase curves
     # sensor and motor connections
@@ -140,20 +148,20 @@ def plot_connection_strenghts(ax, f_sens, f_motor, a_sens, a_motor, a_ips, a_con
 
     # ipsilateral connections
     x, y = draw_anti_curve_vertical(pos1, pos3)
-    line_1_3, = ax.plot(x, y, color = 'red', linewidth = a_ips / k)
+    line_1_3, = ax.plot(x, y, color = 'red', linewidth = a_ips_left / k)
     x, y = draw_curve_vertical(pos2, pos4)
-    line_2_4, = ax.plot(x, y, color = 'red', linewidth = a_ips / k)
+    line_2_4, = ax.plot(x, y, color = 'red', linewidth = a_ips_right / k)
 
     # contralateral connections
     x, y = draw_anti_curve_horizontal(pos1, pos4)
-    line_1_4, = ax.plot(x, y, color = 'red', linewidth = a_con / k)
+    line_1_4, = ax.plot(x, y, color = 'red', linewidth = a_con_left / k)
     x, y = draw_curve_horizontal(pos2, pos3)
-    line_2_3, = ax.plot(x, y, color = 'red', linewidth = a_con / k)
+    line_2_3, = ax.plot(x, y, color = 'red', linewidth = a_con_right / k)
 
     ax.axis('scaled')
 
 
-def plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, x_position, y_position, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_decay_rate):
+def plot_single_agent_run(f_sens, f_motor, coupling_values, k, x_position, y_position, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_ratio, stimulus_decay_rate):
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
     # plot the trajectory of the agant in the environment
@@ -170,7 +178,8 @@ def plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, x_p
     ax1.set_xlim([-150, 150])
     ax1.set_ylim([-150, 150])
 
-    plot_connection_strenghts(ax2, f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k)
+
+    plot_connection_strenghts(ax2, f_sens, f_motor, coupling_values, k)
     ax2.axis('scaled')
 
     ax3.plot(phase_differences[0, 2:len(angles)], color = 'blue')
@@ -190,14 +199,18 @@ def plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, x_p
 
     # plot the environment with stimulus concentration
     N = 1000
-    x = np.linspace(-150, 150, N)
+    x = np.linspace(-200, 200, N)
     y = np.linspace(-150, 150, N)
     xx, yy = np.meshgrid(x, y)
     xx, yy = np.meshgrid(x, y)
-    zz = np.sqrt(xx**2 + yy**2)   
-    zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
-    environment_plot = ax1.contourf(x, y, zs)
-    ax1.axis('scaled')
+    zz_1 = np.sqrt((xx+100)**2 + yy**2)   
+    zs_1 = stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
+    #environment_plot = ax1.contourf(x, y, zs_1)
+
+    zz_2 = np.sqrt((xx-100)**2 + yy**2)   
+    zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
+    environment_plot = ax1.contourf(x, y, zs_1 + zs_2)
+
     plt.colorbar(environment_plot, ax=ax1)
     plt.show()
 
@@ -205,19 +218,68 @@ def plot_single_agent_run(f_sens, f_motor, a_sens, a_motor, a_ips, a_con, k, x_p
 
 
 
-def single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate, duration, fs):
+
+def plot_single_agent_multiple_trajectories(x_positions, y_positions, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio):
+    fig, (ax1)= plt.subplots(1,1)
+    cmap = plt.cm.get_cmap("magma")
+    # plot the trajectory of all agents in the environment
+    for i in range(len(x_positions)):
+        x_prev = x_positions[i][0]
+        y_prev = y_positions[i][0]
+        t = 0
+        for x, y in zip(x_positions[i], y_positions[i]):
+            # later samples are more visible
+            a = 0.1 + 0.5*t/len(x_positions[i])
+            ax1.plot([x_prev, x], [y_prev, y], alpha = a, color = cmap(i/len(x_positions)))
+            x_prev = x
+            y_prev = y
+            t+=1
+
+    if environment == "single_stimulus":
+        ax1.set_xlim([-500, 500])
+        ax1.set_ylim([-550, 550])
+    else:
+        ax1.set_xlim([-200, 200])
+        ax1.set_ylim([-150, 150])
+
+    # plot the environment with stimulus concentration
+    N = 1000
+    x = np.linspace(-200, 200, N)
+    y = np.linspace(-150, 150, N)
+    xx, yy = np.meshgrid(x, y)
+    xx, yy = np.meshgrid(x, y)
+    zz_1 = np.sqrt((xx+100)**2 + yy**2)   
+    zs_1 = stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
+    #environment_plot = ax1.contourf(x, y, zs_1)
+
+    zz_2 = np.sqrt((xx-100)**2 + yy**2)   
+    zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
+    environment_plot = plt.contourf(x, y, zs_1 + zs_2)
+    plt.axis('scaled')
+    plt.colorbar(environment_plot)
+    plt.show()
+    return fig
+
+
+
+
+
+def single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate, stimulus_ratio, duration, fs):
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.set_size_inches(12,5)
     # plot the environment with stimulus concentration
     N = 1000
-    x = np.linspace(-150, 150, N)
+    x = np.linspace(-200, 200, N)
     y = np.linspace(-150, 150, N)
     xx, yy = np.meshgrid(x, y)
     xx, yy = np.meshgrid(x, y)
-    zz = np.sqrt(xx**2 + yy**2)   
-    zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
-    #zs = stimulus_scale * np.exp( - stimulus_decay_rate * zz)
-    environment_plot = ax1.contourf(x, y, zs)
+    zz_1 = np.sqrt((xx+100)**2 + yy**2)   
+    zs_1 = stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
+    #environment_plot = ax1.contourf(x, y, zs_1)
+
+    zz_2 = np.sqrt((xx-100)**2 + yy**2)   
+    zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
+    environment_plot = ax1.contourf(x, y, zs_1 + zs_2)
     ax1.axis('scaled')
     #ax1.set_title('Approach score = ' + str(np.mean(approach_scores)) )
     plt.colorbar(environment_plot, ax=ax1)

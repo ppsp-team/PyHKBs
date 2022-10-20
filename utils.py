@@ -70,3 +70,46 @@ def eucl_distance_np(location_1, location_2):
     """
     return np.sqrt((location_1[0] - location_2[0])**2 + (location_1[1] - location_2[1])**2)
 
+
+def complementary_connection(connection_strength, asymmetry_degree):
+   return (1 - connection_strength) * asymmetry_degree + (1 - asymmetry_degree) * connection_strength
+
+
+def initiate_coupling_weights(scale, asymmetry_degree, random_connections, n_oscillators):
+
+    if random_connections: 
+        a_sens = np.random.uniform()
+        a_motor = np.random.uniform()
+        a_ips_left = np.random.uniform()
+        a_con_left = np.random.uniform()
+    else:
+        a_sens = 1
+        a_motor = 1
+        a_ips_left = 1
+        a_con_left = 1
+
+   # make random variables for connectivities:
+    a_ips_right = complementary_connection(a_ips_left, asymmetry_degree)
+    a_con_right = complementary_connection(a_con_left, asymmetry_degree)
+
+
+    if n_oscillators == 5:
+        # also determine connections to the 5th oscillator
+        if random_connections:
+            a_soc_sens_left = np.random.uniform()
+            a_soc_motor_left = np.random.uniform()
+        else: 
+            a_soc_sens_left = 1
+            a_soc_motor_left = 1
+
+        a_soc_sens_right = complementary_connection(a_soc_sens_left, asymmetry_degree)
+        a_soc_motor_right = complementary_connection(a_soc_motor_left, asymmetry_degree)
+
+        coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor,
+                    a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right])
+        return coupling_weights, a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor, a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right
+
+    else:
+        coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor])
+
+        return coupling_weights, a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor

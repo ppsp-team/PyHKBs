@@ -85,10 +85,17 @@ class Environment():
             self.orientation = self.orientation - self.delta_orientation / self.fs
         #elif action == 2:
         #   keep moving forward
+        
 
-        output_angle = np.sign(action) * np.angle(np.exp(1j*(action)))
+        output_angle =  np.angle(np.exp(1j*(action)))
+
+
+
        # orientation += output_angle  #np.sin(action)*self.delta_orientation / self.fs
-        self.orientation += output_angle #self.orientation + action * (1/self.fs) #np.sin(action)*self.delta_orientation / self.fs
+        self.orientation += 25 * output_angle / self.fs 
+        #self.orientation = output_angle 
+
+
         self.position = self.position + np.array([np.sin(self.orientation)
         * self.movement_speed * (1/self.fs), np.cos(self.orientation) * self.movement_speed * (1/self.fs)])
 
@@ -104,8 +111,12 @@ class Environment():
 
 
         # get gradient directly
-        left_gradient = self.get_stimulus_gradient(left_eye_position)
-        right_gradient = self.get_stimulus_gradient(right_eye_position)
+
+        left_gradient = self.get_stimulus_concentration(left_eye_position)
+        right_gradient = self.get_stimulus_concentration(right_eye_position)
+
+        # print("left gradient" + str(left_gradient))
+        # print("right gradient" + str(right_gradient))
 
         # the agent will observe the stimulus gradient at its eyes (state)
         state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) #* self.fs
@@ -133,9 +144,9 @@ class Environment():
             distances.append(eucl_distance_np(stimulus_position, self.position))
         self.distance = np.min(distances)
 
-        if self.distance < 5:
+        if self.distance < 10:
             reward = (self.duration - self.time) * self.stimulus_scale 
-            done = True
+            #done = True
 
         self.time += 1/self.fs
         return state, reward, done
@@ -160,7 +171,7 @@ class Environment():
             distances.append(eucl_distance_np(stimulus_position, location))
 
         stimulus_concentration =  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
-        if len(distances) < 1:
+        if len(distances) > 1:
             stimulus_concentration_1 =  self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
             stimulus_concentration_2 = self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[1])
             stimulus_concentration = stimulus_concentration_1 + self.stimulus_ratio * stimulus_concentration_2
@@ -185,10 +196,12 @@ class Environment():
 
         distances = []
         for stimulus_position in self.stimulus_positions:
+            # distance to stimuli center
             distances.append(eucl_distance_np(stimulus_position, location))
 
         stimulus_gradient =  self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
-        if len(distances) < 1:
+        if len(distances) > 1:
+            # if moer than one stimulus
             stimulus_gradient_1 =  self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[0])
             stimulus_gradient_2 = self.stimulus_decay_rate * self.stimulus_scale * np.exp( - self.stimulus_decay_rate * distances[1])
             stimulus_gradient = stimulus_gradient_1 + self.stimulus_ratio * stimulus_gradient_2
@@ -233,7 +246,7 @@ class Environment():
 class Social_environment():
 
     def __init__(self, fs, duration, stimulus_position, stimulus_decay_rate,
-     stimulus_scale, stimulus_sensitivity, starting_positions, starting_orientations, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio):
+     stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio, n_agents):
         """
         starting_positions = list with one tuple per agent
         """
@@ -251,12 +264,6 @@ class Social_environment():
         self.delta_orientation = delta_orientation
         self.time = 0
         self.stimulus_ratio = stimulus_ratio
-        self.agent_positions = starting_positions
-        self.agent_orientations = starting_orientations
-        
-        # you have to store and not replace the old ones right away so that you can update all of them at the same time
-        self.agent_new_positions = starting_positions
-        self.agent_new_orientations = starting_orientations
 
     def reset(self, starting_positions, starting_orientations, n_agents):
         """ For the next episode, train the angent in the same 
@@ -338,6 +345,8 @@ class Social_environment():
             # get gradient directly
             left_gradient = self.get_stimulus_gradient(left_eye_position)
             right_gradient = self.get_stimulus_gradient(right_eye_position)
+
+
 
             # the agent will observe the stimulus gradient at its eyes (state)
             state = self.stimulus_sensitivity  * np.array([left_gradient, right_gradient]) #* self.fs

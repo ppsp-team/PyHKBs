@@ -156,7 +156,7 @@ class Guido(nn.Module):
 
         # initialize phases
         self.phases = torch.tensor([0., 0., 0., 0.])
-        self.output_angle = self.phases[3] - self.phases[2]
+        self.output_angle = self.phases[2] - self.phases[3]
 
 
     def forward(self, input):
@@ -172,7 +172,10 @@ class Guido(nn.Module):
         self.phase_difference = self.full_step_layer(new_input, self.phases)
         self.phases += self.phase_difference 
 
-        output_angle = self.phases[3] - self.phases[2]
+        # if the right motor (4) stars turnin faster, angle will become negative and agent will steer to the left
+        output_angle = self.phases[2] - self.phases[3]
+
+
         self.output_angle = output_angle # % 2 * torch.pi 
         a = torch.sqrt(torch.tensor(1/(1 * torch.pi))) # corresponds to a cartoid with area of 1
 
@@ -296,7 +299,7 @@ class RungeKuttaStepLayer(nn.Module):
     def forward(self, x, phases):
         # get the phase change for each oscillator
         # x is the sensory input to each oscillator
-        x =  self.frequency_array + x - self.phase_layer(phases) - self.anti_phase_layer(phases)
+        x =  2 * torch.pi * self.frequency_array + x - self.phase_layer(phases) - self.anti_phase_layer(phases)
         return x
 
 
@@ -350,7 +353,7 @@ class MutualInfluenceLayer(nn.Module):
 
 class SocialGuido(nn.Module):
     """
-    An RL agent with HKB equations instead of neural network layers
+    Guido with 5 oscillators and the 5th oscillator takes into account the orientation of the other agents
 
     Arguments
     ---------
@@ -467,7 +470,7 @@ class SocialFullStepLayer(nn.Module):
     the phases of the oscillators at the next timestep 
     by solving the system of differential equations using the Runge-Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_agents, agent_id):
+    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_oscillators, n_agents, agent_id):
         super().__init__()
         self.fs = fs
         # initialize the runge kutta step layer that calculates the phase differences for each oscillator
@@ -488,28 +491,31 @@ class SocialRungeKuttaStepLayer(nn.Module):
     Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
     This layer is used sevaral times when using the Runge Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_agents, agent_id):
+    def __init__(self, fs, frequency, phase_coupling, k, agent_coupling, n_oscillators, n_agents, agent_id):
         super().__init__()
 
         self.frequency_array = torch.tensor([frequency[0], frequency[0], frequency[1], frequency[1], frequency[2]])
 
         # create var for each coupling value for clarity
         a_sens = phase_coupling[0]
-        a_ips = phase_coupling[1]
-        a_con = phase_coupling[2]
-        a_motor = phase_coupling[3]
+        a_ips_left = phase_coupling[1] # left sensor to left motor
+        a_ips_right = phase_coupling[2] # right sensor to right motor
+        a_con_left = phase_coupling[3] # starting from left sensor to right motor
+        a_con_right = phase_coupling[4] # starting from right sensor to left motor
+        a_motor = phase_coupling[5]
 
-        a_soc_sens = phase_coupling[4]
-        a_soc_motor = phase_coupling[5]
+        a_soc_sens_left = phase_coupling[6]
+        a_soc_sens_right = phase_coupling[7]
+        a_soc_motor_left = phase_coupling[8]
+        a_soc_motor_right = phase_coupling[9]
 
-        # we initialize couping matrix with the chosen weight
-        self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips, a_con, a_soc_sens],
-                                            [a_sens, 0, a_con, a_ips, a_soc_sens],
-                                            [a_ips, a_con, 0, a_motor, a_soc_motor],
-                                            [a_con, a_ips, a_motor, 0, a_soc_motor],
-                                            [a_soc_sens, a_soc_sens, a_soc_motor, a_soc_motor, 0]])
-        
-        n_oscillators = self.phase_coupling_matrix.size(dim=0)
+
+        # if there is a 5th oscillator also include the weights for that one
+        self.phase_coupling_matrix = torch.tensor([[0, a_sens, a_ips_left, a_con_left, a_soc_sens_left],
+                                            [a_sens, 0, a_con_right, a_ips_right, a_soc_sens_right],
+                                            [a_ips_left, a_con_right, 0, a_motor, a_soc_motor_left],
+                                            [a_con_left, a_ips_right, a_motor, 0, a_soc_motor_right],
+                                            [a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right, 0]])
 
         # the anti phase weights are proportional to the phase weights
         self.anti_phase_coupling_matrix =  self.phase_coupling_matrix / k
@@ -530,7 +536,7 @@ class SocialRungeKuttaStepLayer(nn.Module):
     def forward(self, input, phases, angles,  inter_agent_distances):
         # get the phase change for each oscillator
         # x is the sensory input to each oscillator
-        output =  self.frequency_array + input - self.phase_layer(phases) - self.anti_phase_layer(phases) - self.phase_social_layer(angles,  inter_agent_distances) - self.anti_phase_social_layer(angles,  inter_agent_distances)
+        output = 2 * torch.pi * self.frequency_array + input - self.phase_layer(phases) - self.anti_phase_layer(phases) - self.phase_social_layer(angles,  inter_agent_distances) - self.anti_phase_social_layer(angles,  inter_agent_distances)
         return output
 
 
@@ -596,5 +602,4 @@ class SocialInfluenceLayer(nn.Module):
         output = self.oscillator_filter * weighted_sum
        
         return output
-
 
