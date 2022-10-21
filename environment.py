@@ -92,7 +92,7 @@ class Environment():
 
 
        # orientation += output_angle  #np.sin(action)*self.delta_orientation / self.fs
-        self.orientation += 25 * output_angle / self.fs 
+        self.orientation += 50 * output_angle / self.fs 
         #self.orientation = output_angle 
 
 
