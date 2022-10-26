@@ -117,10 +117,13 @@ class Guido(nn.Module):
     k: int or float
         the proportion of phase coupling vs anti-phase coupling
     """
-
-    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, symmetric = True, n_oscillators = 4):
+    def __init__(self, device, fs,  frequency = np.array([]), phase_coupling = np.array([]), k = -1, n_oscillators = 4):
         # also execute base initialization of nn.Module
         super().__init__() 
+
+
+        self.n_oscillators = n_oscillators
+
 
         # initialize the frequencies
         if frequency.size == 0:
@@ -148,7 +151,7 @@ class Guido(nn.Module):
             
 
         # layer to calculate the next phase of the oscillators
-        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k, symmetric, n_oscillators)
+        self.full_step_layer = FullStepLayer(fs, self.frequency, self.phase_coupling, self.k, n_oscillators)
 
         # layer to get the probabilities for each action
         self.softmax = nn.Softmax(dim=None)
@@ -163,7 +166,7 @@ class Guido(nn.Module):
         # transform  input to two eyes into a vector 
         # with one value per oscillator
         self.input = torch.squeeze(input)
-        new_input = torch.zeros(4)
+        new_input = torch.zeros(self.n_oscillators)
         new_input[0] = self.input[0]
         new_input[1] = self.input[1]
         
@@ -226,12 +229,12 @@ class FullStepLayer(nn.Module):
     the phases of the oscillators at the next timestep 
     by solving the system of differential equations using the Runge-Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, symmetric,  n_oscillators):
+    def __init__(self, fs, frequency, phase_coupling, k,  n_oscillators):
         super().__init__()
         self.fs = fs
         # initialize the runge kutta step layer that calculates the phase differences for each oscillator
         # we will pass the input and phases through this layer 4 times in order to execute the runge kutta method
-        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k, symmetric,  n_oscillators)
+        self.runge_kutta_step = RungeKuttaStepLayer(fs, frequency, phase_coupling, k, n_oscillators)
 
     def forward(self, x, phases):
         k1 = self.runge_kutta_step.forward(x, phases) * (1/self.fs)
@@ -247,7 +250,7 @@ class RungeKuttaStepLayer(nn.Module):
     Pytorch layer that that calculates the phase change for each oscillator using the full HKB equations
     This layer is used sevaral times when using the Runge Kutta method
     """
-    def __init__(self, fs, frequency, phase_coupling, k, symmetric, n_oscillators):
+    def __init__(self, fs, frequency, phase_coupling, k, n_oscillators):
         super().__init__()
         
         if  n_oscillators == 4:
@@ -299,6 +302,7 @@ class RungeKuttaStepLayer(nn.Module):
     def forward(self, x, phases):
         # get the phase change for each oscillator
         # x is the sensory input to each oscillator
+
         x =  2 * torch.pi * self.frequency_array + x - self.phase_layer(phases) - self.anti_phase_layer(phases)
         return x
 

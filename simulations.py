@@ -35,6 +35,7 @@ def evaluate_parameters(env, device, duration, fs, starting_distances, starting_
 
     """
     # create agent with these parameters
+    print('oscil outside ' + str(n_oscillators))
 
     policy = Guido(device, fs, frequency, coupling_weights, k, n_oscillators).to(device)
     # make saving runs for each episode
@@ -74,7 +75,7 @@ def single_simulation(env, duration, fs, policy, n_oscillators, starting_distanc
 
     # reset Guido
     if n_oscillators == 4:
-        policy.reset(torch.tensor([0., .0, .0, 0.]))
+        policy.reset(torch.tensor([0., 0., 0., 0.]))
     elif n_oscillators == 5:
         policy.reset(torch.tensor([0., 0., 0., 0., 0.]))
 

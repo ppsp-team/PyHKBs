@@ -92,7 +92,7 @@ agent_eye_angle = 45
 
 
 # define variables for environment
-fs = 50 # Hertz
+fs = 250# Hertz
 duration = 100 # Seconds
 stimulus_positions = [np.array([-100, 0]), np.array([100,0])] # m, m
 stimulus_decay_rate = 0.02 # in the environment
@@ -108,7 +108,7 @@ agent_eye_angle = 0.5 * np.pi
 intrinsic_frequencies = np.array([1., 1.])
 n_oscillators = 4
 starting_distances = [100]#np.linspace(95, 105, )
-starting_orientations = np.linspace(-np.pi/2, np.pi/2, 5)
+starting_orientations = [-0.2] # np.linspace(-np.pi/2, np.pi/2, 5)
 
 k = 2
 
@@ -130,18 +130,36 @@ k = max_mean_agent["k"]
 a_sens = 0.
 a_ips_left = 0.1
 a_ips_right= 0.1
-a_con_left = 0.4
-a_con_right = 0.4
+a_con_left = 0.5
+a_con_right = 0.5
 a_motor = 0.5
-scale = 1.5
+scale = 3
 stimulus_sensitivity = 5
-f_sens = 0.2
-f_motor = 0.2
+f_sens = 5.
+f_motor = 5.
 k = 2
 
+n_oscillators = 5
+
+a_soc_sens_left = 0.2
+a_soc_sens_right = 0.2
+a_soc_motor_left = 0.2
+a_soc_motor_right = 0.2
+
 coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor])
+
+
+
+
+coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor, a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right])
+
+coupling_weights = 0.75 * scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor,
+                    a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right])
+
+
 intrinsic_frequencies = np.array([f_sens, f_motor])
 
+intrinsic_frequencies = np.array([f_sens, f_motor, f_motor])
 
 
 
@@ -158,6 +176,29 @@ env = Environment(fs, duration, stimulus_positions, stimulus_ratio, stimulus_dec
 
 all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions = evaluate_parameters(env, device, duration, fs, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, n_oscillators)
 
+
+# calculate Kuramoto order parameter of whole system
+phase_matrix = all_phases[0]
+KOP_in_time = np.abs(np.mean(np.exp(1j * phase_matrix), 0))
+KOP_std = np.std(KOP_in_time)
+
+# all-to-all connectivity with PLV
+counter = 0
+plv = 0
+for i in range(n_oscillators):
+   for j in range(i, n_oscillators):
+      plv += np.abs(np.mean(np.exp(1j *(phase_matrix[i,:] - phase_matrix[j,:]))))
+      counter+=1
+plv/=counter
+plt.plot(KOP_in_time)
+plt.show()
+
+print(plv)
+print(KOP_std)
+
+
+
+
 plot_single_agent_multiple_trajectories(all_positions_x, all_positions_y, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio)
 
 
@@ -166,19 +207,9 @@ for x_position, y_position, phases, phase_differences, input_values, angles, act
    single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate,  stimulus_ratio, duration, fs)
 
 
-phase_matrix = all_phases[0]
-for i in range(np.size(phase_matrix, 0)): 
-
-   plt.plot(phase_matrix[i,:] % 2 * np.pi)
-
-plv_in_time = np.exp(1j *(phase_matrix[0,:] - phase_matrix[1,:]))
-plv = np.abs(np.mean(plv_in_time))
-plt.plot(plv_in_time)
-plt.show()
-print()
 
 
-# calculate average PLV between oscillators:
+
 
 
 
