@@ -24,13 +24,13 @@ import pickle
 
 
     
-def plot_multi_agent_run(ax, stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_positions, y_positions, n_agents):
-    
+def plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_positions, y_positions, n_agents):
+    fig, (ax)= plt.subplots(1,1)
     cmap = plt.cm.get_cmap("magma")
     # plot the trajectory of all agents in the environment
-    for i in range(n_agents):
+    for i in range(1,n_agents):
         x_prev = x_positions[i][0]
-        y_prev = y_positions[i][0]
+        y_prev = y_positions[i][1]
         t = 0
         for x, y in zip(x_positions[i], y_positions[i]):
             # later samples are more visible
@@ -49,16 +49,18 @@ def plot_multi_agent_run(ax, stimulus_ratio, stimulus_decay_rate, stimulus_scale
     xx, yy = np.meshgrid(x, y)
     xx, yy = np.meshgrid(x, y)
     zz_1 = np.sqrt((xx+100)**2 + yy**2)   
-    zs_1 = stimulus_ratio * stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
+    zs_1 = stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
     #environment_plot = ax1.contourf(x, y, zs_1)
 
     zz_2 = np.sqrt((xx-100)**2 + yy**2)   
-    zs_2 = 1 *stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
+    zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
     environment_plot = ax.contourf(x, y, zs_1 + zs_2)
+
 
     ax.axis('scaled')
     plt.colorbar(environment_plot, ax=ax)
-    return environment_plot
+    return fig
+
 
 def draw_curve_horizontal(p1, p2):
     x = np.linspace(p1[0], p2[0], 100)

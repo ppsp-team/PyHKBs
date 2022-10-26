@@ -58,11 +58,11 @@ def evaluate_parameters(env, device, duration, fs, starting_distances, starting_
             all_positions_x.append(position_x)
             all_positions_y.append(position_y)
 
-        all_input_values.append(input_values)
-        all_phase_differences.append(phase_differences)
-        all_phases.append(phases) 
-        all_actions.append(actions)
-        all_angles.append(angles)
+            all_input_values.append(input_values)
+            all_phase_differences.append(phase_differences)
+            all_phases.append(phases) 
+            all_actions.append(actions)
+            all_angles.append(angles)
 
 
     return all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions
@@ -109,81 +109,125 @@ def single_simulation(env, duration, fs, policy, n_oscillators, starting_distanc
 
 
 
-def evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, frequency, coupling_weights, social_sensitivity, n_oscillators, flavour, n_agents, plot):
+def evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, frequency, coupling_weights, social_sensitivity, social_weight_decay_rate, n_oscillators, flavour, n_agents, plot):
 
-
+    print(flavour)
+    print(n_agents)
      # create multiple agents with same parameters
     agents = []
     for i in range(n_agents):
         agent_id = i
         if flavour == "eco":
-             policy = Guido(device, fs, frequency, coupling_weights, k, n_oscillators).to(device)
+            policy = Guido(device, fs, frequency, coupling_weights, k, n_oscillators).to(device)
         elif flavour == "social":
-            policy = SocialGuido(device, fs, frequency, coupling_weights, k, social_sensitivity, n_agents, i).to(device)
+            policy = SocialGuido(device, fs, frequency, coupling_weights, k, social_sensitivity, social_weight_decay_rate, n_agents, i).to(device)
         else:
             print('flavour not recognized')
         agents.append(policy)
 
-    approach_scores = []
+    all_approach_scores = []   
+    all_positions_x = []
+    all_positions_y = [] 
+    all_input_values = []
+    all_phases = []
+    all_phase_differences = []
+    all_actions = []
+    all_angles = []
 
+    # the starting_orientations variable should contain the angle between the agent starting angles
     # do ten episodes for each parameter combination
+    starting_positions = []
     for starting_distance in starting_distances:
         for starting_orientation in starting_orientations:
-
-            agent_starting_positions = [] 
-            agent_starting_orientations = []
-            orientations = np.random.uniform(starting_orientation - 0.5, starting_orientation + 0.5, n_agents)
-            positions = np.random.uniform(starting_distance- 5, starting_distance + 5, n_agents)
+            max_angle = n_agents * starting_orientation/2
+            min_angle = - max_angle
+            agent_starting_orientations = np.linspace(min_angle, max_angle, n_agents)
             for a in range(n_agents):
-                agent_starting_positions.append(np.array([0, positions[a]]))
-                agent_starting_orientations.append(orientations[a])
-            states = env.reset(agent_starting_positions, agent_starting_orientations, n_agents)
-            start_distance = np.mean(env.distances)
+                starting_positions.append(np.array([0, -starting_distance]))
 
-            # reset the agent phases
-            for a in range(n_agents):
-                if flavour == 1:
-                    agents[a].reset(torch.tensor([0., 0., 0., 0., 0.]))
-                else:
-                    agents[a].reset(torch.tensor([0., 0., 0., 0.,]))
-                
-                # make random starting position around the real position for the agents
 
-           
-            # Complete the whole episode
-            for t in range(duration * fs):
-                actions = []
+            approach_score, env.position_x, env.position_y, agent_input_values, agent_phases, agent_phase_differences, agent_actions, agent_angles = multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations)
 
-                # make forward pass through each agent and collect all the agent
-                for a in range(len(agents)):
-                    if flavour == 1:
-                        action, log_prob, output_angle = agents[a].act(states[a], np.array(env.agent_orientations), env.inter_agent_distances)
-                    else:
-                        action, log_prob, output_angle = agents[a].act(states[a])
-                    actions.append(output_angle.cpu().detach().numpy())
+            all_approach_scores.append(approach_score)
+            # save the trajectories for this run
+            all_positions_x.append(env.position_x)
+            all_positions_y.append(env.position_y)
 
-                # let all agents perform their next action in the environment
-                states, rewards, done = env.step(actions, 10)
+            all_input_values.append(agent_input_values)
+            all_phase_differences.append(agent_phase_differences)
+            all_phases.append(agent_phases) 
+            all_actions.append(agent_actions)
+            all_angles.append(agent_angles)
+    return all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions
 
-                if done:
-                    break 
+
+def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations):
+
+    states = env.reset(starting_positions, agent_starting_orientations, 10)
+
+    # reset Guidos
+    agent_input_values = []
+    agent_phase_differences = []
+    agent_phases = []
+    agent_actions = []
+    agent_angles = []
+
+    for a in range(n_agents):
+        if n_oscillators == 4:
+            agents[a].reset(torch.tensor([0., 0., 0., 0.]))
+        elif n_oscillators == 5:
+            agents[a].reset(torch.tensor([0., 0., 0., 0., 0.]))
+
+        agent_input_values.append(np.zeros((2, fs * duration)))
+        agent_phase_differences.append(np.zeros((n_oscillators, fs * duration)))
+        agent_phases.append(np.zeros((n_oscillators, fs * duration)))
+        agent_actions.append([])
+        agent_angles.append([])
+
+
+    # Complete the whole episode
+    for t in range(duration * fs):
+    
+        # let each agent calculate their next output angle
+        timestep_actions = []
+        for a in range(len(agents)):
+            if flavour == "social":
+                action, log_prob, output_angle = agents[a].act(states[a], np.array(env.agent_orientations), env.inter_agent_distances)
+            else:
+                action, log_prob, output_angle = agents[a].act(states[a])
             
+            timestep_actions.append(float(output_angle.cpu().detach().numpy()))
 
-                agent_scores_1 = []
-                agent_scores_2 = []
+        # let all agents perform their next action in the environment
+        states, rewards, done = env.step(timestep_actions, 10)
 
-                for a in range(n_agents):
-                    start_distance_1 = eucl_distance_np(np.array([-100, 0]), agent_starting_positions[a])
-                    end_distance_1 = eucl_distance_np(np.array([-100, 0]), env.agent_positions[a])
-                    agent_scores_1.append(1 - (end_distance_1 / start_distance_1))
+        # save the data for all the agents
+        for a in range(len(agents)):
+            timestep_actions = []
+            agent_input_values[a][:,t] = agents[a].input.cpu().detach().numpy()
+            agent_phase_differences[a][:, t] = agents[a].phase_difference.cpu().detach().numpy() * env.fs
+            agent_phases[a][:, t] = agents[a].phases.cpu().detach().numpy()
+            agent_actions[a].append(env.agent_orientations[a])
+            agent_angles[a].append(agents[a].output_angle.cpu().detach().numpy())
+            
+        if done:
+                break 
 
-                    start_distance_2 = eucl_distance_np(np.array([100, 0]), agent_starting_positions[a])
-                    end_distance_2 = eucl_distance_np(np.array([100, 0]), env.agent_positions[a])
-                    agent_scores_2.append(1 - (end_distance_2 / start_distance_2))
+        agent_scores_1 = []
+        agent_scores_2 = []
 
-                approach_score = np.min([np.mean(agent_scores_1), np.mean(agent_scores_2)])
-                approach_scores.append(approach_score)
+    # calculate scores when simulation is over
+    for a in range(n_agents):
+        start_distance_1 = eucl_distance_np(np.array([-100, 0]), starting_positions[a])
+        end_distance_1 = eucl_distance_np(np.array([-100, 0]), env.agent_positions[a])
+        agent_scores_1.append(1 - (end_distance_1 / start_distance_1))
 
-    return approach_scores
+        start_distance_2 = eucl_distance_np(np.array([100, 0]), starting_positions[a])
+        end_distance_2 = eucl_distance_np(np.array([100, 0]), env.agent_positions[a])
+        agent_scores_2.append(1 - (end_distance_2 / start_distance_2))
 
+        approach_score = np.min([np.mean(agent_scores_1), np.mean(agent_scores_2)])
+
+   
+    return approach_score, env.position_x, env.position_y, agent_input_values, agent_phases, agent_phase_differences, agent_actions, agent_angles
 

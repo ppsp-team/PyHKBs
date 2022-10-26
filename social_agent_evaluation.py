@@ -1,8 +1,8 @@
 import numpy as np
 from utils import symmetric_matrix, eucl_distance, initiate_coupling_weights
-from environment import Environment, Social_environment
-from simulations import evaluate_parameters
-from visualizations import single_agent_animation, plot_single_agent_run, plot_single_agent_multiple_trajectories
+from environment import Environment, Social_environment, Social_stimulus_environment
+from simulations import evaluate_parameters_social
+from visualizations import plot_multi_agent_run
 from agent_RL import Gina, Guido, MultipleGuidos
 
 import time
@@ -19,46 +19,6 @@ import torch
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-
-
-def show_grid_search_results(grid_results, rows):
-   """
-   look at parameters and find the ones that perform best
-   """
-
-   # find all values with a certain performance
-   with pd.option_context('display.max_rows', rows,
-                        'display.precision', 3,
-                        ):
-      print(grid_results)
-
-
-def average_grid_serach(grid_results):
-   """
-   average the performance of all the runs with a certain set of parameters
-
-   """
-   grid_results = grid_results.groupby(["sensitivity", "k", "f_sens", "f_motor", "a_sens", "a_ips_left", "a_ips_right", "a_con_left", "a_con_right", "a_motor", "scaling_factor", "asymmetry_degree"]).agg({'performance': ['mean', 'min', 'max']})
-   grid_results.columns = ['performance_mean', 'performance_min', 'performance_max']
-   grid_results = grid_results.reset_index()
-   return grid_results
-
-
-def find_agents(grid_results):
-   """
-   finds the best agents
-   the worst agent 
-   and the max min agent
-   
-   """
-
-   
-   max_mean_agent = grid_results.iloc[grid_results["performance_mean"].argmax()]
-   min_mean_agent = grid_results.iloc[grid_results["performance_mean"].argmin()]
-   max_min_agent = grid_results.iloc[grid_results["performance_min"].argmax()]
-   return  max_mean_agent, min_mean_agent, max_min_agent
 
 
 def calculate_KOP(phase_matrix):
@@ -99,41 +59,46 @@ def calculate_average_PLV(phase_matrix, window_length, window_step):
 
 
 # define variables for environment
-fs = 250# Hertz
-duration = 100 # Seconds
+fs = 100# Hertz
+duration = 30 # Seconds
 stimulus_positions = [np.array([-100, 0]), np.array([100,0])] # m, m
 stimulus_decay_rate = 0.02 # in the environment
-stimulus_scale = 1 # in the environment
+stimulus_scale = 0.5 # in the environment
 stimulus_sensitivity = 1 # of the agent
 movement_speed = 10 #m/s
 delta_orientation = 0.1*np.pi # rad/s turning speed # not used anymore here
-stimulus_ratio = 1.
+stimulus_ratio = 0.8
 agent_radius = 2.5
 agent_eye_angle = 0.5 * np.pi # 45 degrees
 starting_position = [0, -100] 
 starting_orientation = -0.25*np.pi
 starting_distances = [100]#np.linspace(95, 105, )
-starting_orientations = [-0.2] # np.linspace(-np.pi/2, np.pi/2, 5)
+starting_orientations = [0.2] # np.linspace(-np.pi/2, np.pi/2, 5)
 environment = "double_stimulus"
 
 
 
 a_sens = 0.
-a_ips_left = 0.1
-a_ips_right= 0.1
+a_ips_left = 0.
+a_ips_right= 0.
 a_con_left = 0.5
 a_con_right = 0.5
-a_motor = 0.5
+a_motor = 0.05
 scale = 2.
 stimulus_sensitivity = 5
+social_sensitivity = 0
+social_weight_decay_rate = 0.01
+
 f_sens = 5.
 f_motor = 5.
-k = 2
-a_soc_sens_left = 0.2
-a_soc_sens_right = 0.2
-a_soc_motor_left = 0.2
-a_soc_motor_right = 0.2
+k = 5
+a_soc_sens_left = 0.
+a_soc_sens_right = 0.
+a_soc_motor_left = 0.5
+a_soc_motor_right = 0.5
 n_oscillators = 5
+flavour = 'eco'
+n_agents = 10
 
 if n_oscillators == 4:
    coupling_weights = scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor])
@@ -142,19 +107,36 @@ else:
    coupling_weights = 0.75 * scale * np.array([ a_sens, a_ips_left, a_ips_right, a_con_left, a_con_right, a_motor,
                     a_soc_sens_left, a_soc_sens_right, a_soc_motor_left, a_soc_motor_right])
    intrinsic_frequencies = np.array([f_sens, f_motor, f_motor])
-
-#for scale in np.linspace(0.1, 0.5, 5):
-#coupling_weights = initiate_coupling_weights(scale, 0., False, 4)[0]
 print(coupling_weights)
 
+if flavour == "social":
+    env = Social_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
+        stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio, n_agents)
 
-env = Environment(fs, duration, stimulus_positions, stimulus_ratio, stimulus_decay_rate,
-   stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
+elif flavour == "eco":
+    agent_stimulus_scale = 0.002
+    agent_stimulus_decay_rate = 0.1
+    env = Social_stimulus_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
+     stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio, n_agents)
 
-all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions = evaluate_parameters(env, device, duration, fs, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, n_oscillators)
+all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions = evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, social_sensitivity, social_weight_decay_rate, n_oscillators, flavour, n_agents, False)
+
+positions_x = all_positions_x[0] # take one run
+positions_y = all_positions_y[0]
+for a in range(n_agents):
+    plt.plot(positions_x[a], positions_y[a])
+plt.show()
+
+print(all_approach_scores)
+plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, positions_x, positions_y , n_agents)
+
+
+
+
+
 
 # choose one of the runs
-phase_matrix = all_phases[0]
+phase_matrix = all_phases[0][0]
 
 # calculate the KOP
 KOP_in_time, KOP_std = calculate_KOP(phase_matrix)
