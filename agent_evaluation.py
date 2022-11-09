@@ -66,6 +66,7 @@ def calculate_KOP(phase_matrix):
    KOP_std = np.std(KOP_in_time)
    return KOP_in_time, KOP_std
 
+
 def calculate_average_PLV(phase_matrix, window_length, window_step):
    # calculate windowed PLV
    window_start = 0
@@ -100,37 +101,39 @@ def calculate_average_PLV(phase_matrix, window_length, window_step):
 
 # define variables for environment
 fs = 250# Hertz
-duration = 100 # Seconds
+duration = 30 # Seconds
 stimulus_positions = [np.array([-100, 0]), np.array([100,0])] # m, m
 stimulus_decay_rate = 0.02 # in the environment
 stimulus_scale = 1 # in the environment
 stimulus_sensitivity = 1 # of the agent
 movement_speed = 10 #m/s
 delta_orientation = 0.1*np.pi # rad/s turning speed # not used anymore here
-stimulus_ratio = 1.
+stimulus_ratio = 0.
 agent_radius = 2.5
-agent_eye_angle = 0.5 * np.pi # 45 degrees
+agent_eye_angle = 0.5 * np.pi # 90 degrees
 starting_position = [0, -100] 
 starting_orientation = -0.25*np.pi
 starting_distances = [100]#np.linspace(95, 105, )
-starting_orientations = [-0.2] # np.linspace(-np.pi/2, np.pi/2, 5)
+starting_orientations = [-0.] # np.linspace(-np.pi/2, np.pi/2, 5)
 environment = "double_stimulus"
 
 
 
 a_sens = 0.
-a_ips_left = 0.1
-a_ips_right= 0.1
-a_con_left = 0.5
-a_con_right = 0.5
-a_motor = 0.5
-scale = 2.
+a_ips_left = 0.
+a_ips_right= 0.
+a_con_left = 0.8
+a_con_right = 0.8
+a_motor = 0.
+
+scale = 4
+
 stimulus_sensitivity = 5
 f_sens = 5.
 f_motor = 5.
 k = 2
-a_soc_sens_left = 0.2
-a_soc_sens_right = 0.2
+a_soc_sens_left = 0.
+a_soc_sens_right = 0.
 a_soc_motor_left = 0.2
 a_soc_motor_right = 0.2
 n_oscillators = 5
@@ -151,10 +154,31 @@ print(coupling_weights)
 env = Environment(fs, duration, stimulus_positions, stimulus_ratio, stimulus_decay_rate,
    stimulus_scale, stimulus_sensitivity, starting_position, starting_orientation, movement_speed, agent_radius, agent_eye_angle, delta_orientation)
 
-all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions = evaluate_parameters(env, device, duration, fs, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, n_oscillators)
+runs = evaluate_parameters(env, device, duration, fs, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, n_oscillators)
 
 # choose one of the runs
-phase_matrix = all_phases[0]
+run = runs[0]
+print(run["end time"])
+
+# for this function we have to adjust the data structure
+# plot_single_agent_multiple_trajectories(all_positions_x, all_positions_y, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio)
+
+
+
+x_position = run["x position"]
+y_position = run["y position"]
+phase_differences = run["phase differences"]
+input_values = run["input values"]
+angles = run["output angle"]
+actions = run["orientation"]
+phases = run["phases"]
+
+
+plot_single_agent_run(f_sens, f_motor, coupling_weights, k, x_position, y_position, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_ratio, stimulus_decay_rate)
+single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate,  stimulus_ratio, duration, fs)
+
+
+phase_matrix = run["phases"]
 
 # calculate the KOP
 KOP_in_time, KOP_std = calculate_KOP(phase_matrix)
@@ -170,16 +194,6 @@ print(KOP_std)
 plt.plot(interval_times, plv_in_time)
 plt.plot(KOP_in_time)
 plt.show()
-
-
-
-plot_single_agent_multiple_trajectories(all_positions_x, all_positions_y, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio)
-
-
-for x_position, y_position, phases, phase_differences, input_values, angles, actions in zip(all_positions_x, all_positions_y, all_phases, all_phase_differences, all_input_values, all_angles, all_actions):
-   plot_single_agent_run(f_sens, f_motor, coupling_weights, k, x_position, y_position, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_ratio, stimulus_decay_rate)
-   single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate,  stimulus_ratio, duration, fs)
-
 
 
 
