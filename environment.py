@@ -144,9 +144,9 @@ class Environment():
             distances.append(eucl_distance_np(stimulus_position, self.position))
         self.distance = np.min(distances)
 
-        if self.distance < 10:
+        if self.distance < 5:
             reward = (self.duration - self.time) * self.stimulus_scale 
-            #done = True
+            done = True
 
         self.time += 1/self.fs
         return state, reward, done
@@ -324,24 +324,43 @@ class Social_environment():
             action = actions[i]
             orientation = self.agent_orientations[i]
             position = self.agent_positions[i]
-            # execute action
-            if action == 0:
-                # turn right
-                self.agent_new_orientations[i] = orientation + self.delta_orientation / self.fs
-            elif action == 1:
-                # turn left
-                self.agent_new_orientations[i] = orientation - self.delta_orientation / self.fs
-            #elif action == 2:
-            #   keep moving forward
-            
-            # new version: do the gradual 
-            output_angle = np.angle(np.exp(1j*(action)))
-            orientation += 25 * output_angle / self.fs 
-            self.agent_new_orientations[i] = orientation  #% (2 * np.pi)
-            # calculate next position according to movement speed and new orientation
-            self.agent_new_positions[i] = np.array(position) + np.array([np.sin(orientation)
-            * self.movement_speed * (1/self.fs), np.cos(orientation) * self.movement_speed * (1/self.fs)])
 
+
+            # if statement is to freeze agents that have arrived at stimulus
+        # loop through all Guidos
+        for i in range(len(actions)):
+            
+            # freeze the agents if they are close to stimulus
+            if self.distances[i] > 5:
+                action = actions[i]
+                orientation = self.agent_orientations[i]
+                position = self.agent_positions[i]
+                # execute action
+                if action == 0:
+                    # turn right
+                    self.agent_new_orientations[i] = orientation + self.delta_orientation / self.fs
+                elif action == 1:
+                    # turn left
+                    self.agent_new_orientations[i] = orientation - self.delta_orientation / self.fs
+                #elif action == 2:
+                #   keep moving forward
+                
+                    # new version: do the gradual 
+                output_angle = np.angle(np.exp(1j*(action)))
+                orientation += 50 * output_angle / self.fs 
+
+                self.agent_new_positions[i] = np.array(position) + np.array([np.sin(orientation)
+                * self.movement_speed * (1/self.fs), np.cos(orientation) * self.movement_speed * (1/self.fs)])
+                self.agent_new_orientations[i] = orientation  #% (2 * np.pi)
+
+
+            else:
+                # remains the same
+                position = self.agent_positions[i]
+                orientation = self.agent_new_orientations[i]
+
+                self.agent_new_positions[i] = np.array(position) 
+                self.agent_new_orientations[i] = orientation  
 
 
             self.position_x[i].append(position[0])
@@ -374,11 +393,7 @@ class Social_environment():
             # reward is a combination of food and funger
             reward = food - hunger
             rewards.append(reward)
-            # end the episode when the time taken is too long
-            if self.time > self.duration:
-                done = True
-            else:
-                done = False
+
 
             distances = []
             for stimulus_position in self.stimulus_positions:
@@ -390,7 +405,11 @@ class Social_environment():
                 reward = (self.duration - self.time) * self.stimulus_scale 
 
             # done = True
-
+        # end the episode when the time taken is too long
+        if self.time > self.duration:
+            done = True
+        else:
+            done = False
 
         # after having calculated the new position and angle for each agent, update them
         self.agent_positions = self.agent_new_positions
@@ -565,27 +584,38 @@ class Social_stimulus_environment():
 
         # loop through all Guidos
         for i in range(len(actions)):
-            action = actions[i]
-            orientation = self.agent_orientations[i]
-            position = self.agent_positions[i]
-            # execute action
-            if action == 0:
-                # turn right
-                self.agent_new_orientations[i] = orientation + self.delta_orientation / self.fs
-            elif action == 1:
-                # turn left
-                self.agent_new_orientations[i] = orientation - self.delta_orientation / self.fs
-            #elif action == 2:
-            #   keep moving forward
             
-                  # new version: do the gradual 
-            output_angle = np.angle(np.exp(1j*(action)))
-            orientation += 25 * output_angle / self.fs 
-            self.agent_new_orientations[i] = orientation  #% (2 * np.pi)
-            # calculate next position according to movement speed and new orientation
-            self.agent_new_positions[i] = np.array(position) + np.array([np.sin(orientation)
-            * self.movement_speed * (1/self.fs), np.cos(orientation) * self.movement_speed * (1/self.fs)])
+            # freeze the agents if they are close to stimulus
+            if self.distances[i] > 5:
+                action = actions[i]
+                orientation = self.agent_orientations[i]
+                position = self.agent_positions[i]
+                # execute action
+                if action == 0:
+                    # turn right
+                    self.agent_new_orientations[i] = orientation + self.delta_orientation / self.fs
+                elif action == 1:
+                    # turn left
+                    self.agent_new_orientations[i] = orientation - self.delta_orientation / self.fs
+                #elif action == 2:
+                #   keep moving forward
+                
+                    # new version: do the gradual 
+                output_angle = np.angle(np.exp(1j*(action)))
+                orientation += 50 * output_angle / self.fs 
 
+                self.agent_new_positions[i] = np.array(position) + np.array([np.sin(orientation)
+                * self.movement_speed * (1/self.fs), np.cos(orientation) * self.movement_speed * (1/self.fs)])
+                self.agent_new_orientations[i] = orientation  #% (2 * np.pi)
+
+
+            else:
+                # remains the same
+                position = self.agent_positions[i]
+                orientation = self.agent_new_orientations[i]
+
+                self.agent_new_positions[i] = np.array(position) 
+                self.agent_new_orientations[i] = orientation  
 
 
 
@@ -627,10 +657,7 @@ class Social_stimulus_environment():
             reward = food - hunger
             rewards.append(reward)
             # end the episode when the time taken is too long
-            if self.time > self.duration:
-                done = True
-            else:
-                done = False
+
 
 
             distances = []
@@ -639,12 +666,15 @@ class Social_stimulus_environment():
             distance = np.min(distances)
 
             self.distances[i] = distance
-            if distance < 10:
+            if distance < 5:
                 reward = (self.duration - self.time) * self.stimulus_scale 
-
             # done = True
 
-
+        if self.time > self.duration:
+            done = True
+        else:
+            done = False
+            
         # after having calculated the new position and angle for each agent, update them
         self.agent_positions = self.agent_new_positions
         self.agent_orientations = self.agent_new_orientations

@@ -59,7 +59,7 @@ def calculate_average_PLV(phase_matrix, window_length, window_step):
 
 
 # define variables for environment
-fs = 100# Hertz
+fs = 50 # Hertz
 duration = 30 # Seconds
 stimulus_positions = [np.array([-100, 0]), np.array([100,0])] # m, m
 stimulus_decay_rate = 0.02 # in the environment
@@ -83,9 +83,9 @@ a_ips_left = 0.
 a_ips_right= 0.
 a_con_left = 0.5
 a_con_right = 0.5
-a_motor = 0.05
+a_motor = 0.
 scale = 2.
-stimulus_sensitivity = 5
+stimulus_sensitivity = 2
 social_sensitivity = 0
 social_weight_decay_rate = 0.01
 
@@ -94,10 +94,10 @@ f_motor = 5.
 k = 5
 a_soc_sens_left = 0.
 a_soc_sens_right = 0.
-a_soc_motor_left = 0.5
-a_soc_motor_right = 0.5
+a_soc_motor_left = 0.8
+a_soc_motor_right = 0.8
 n_oscillators = 5
-flavour = 'eco'
+flavour = 'social'
 n_agents = 10
 
 if n_oscillators == 4:
@@ -114,7 +114,7 @@ if flavour == "social":
         stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio, n_agents)
 
 elif flavour == "eco":
-    agent_stimulus_scale = 0.002
+    agent_stimulus_scale = 0.003
     agent_stimulus_decay_rate = 0.1
     env = Social_stimulus_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio, n_agents)

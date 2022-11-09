@@ -75,7 +75,7 @@ def complementary_connection(connection_strength, asymmetry_degree):
    return (1 - connection_strength) * asymmetry_degree + (1 - asymmetry_degree) * connection_strength
 
 
-def initiate_coupling_weights(scale, asymmetry_degree, random_connections, n_oscillators):
+def initiate_coupling_weights(scale, asymmetry_degree, random_connections, n_oscillators, a_sens = 1, a_motor = 1, a_ips = 1, a_con = 1,  a_soc_sens = 1, a_soc_motor = 1):
 
     if random_connections: 
         a_sens = np.random.uniform()
@@ -83,10 +83,8 @@ def initiate_coupling_weights(scale, asymmetry_degree, random_connections, n_osc
         a_ips_left = np.random.uniform()
         a_con_left = np.random.uniform()
     else:
-        a_sens = 1
-        a_motor = 1
-        a_ips_left = 1
-        a_con_left = 1
+        a_ips_left = a_ips
+        a_con_left = a_con
 
    # make random variables for connectivities:
     a_ips_right = complementary_connection(a_ips_left, asymmetry_degree)
@@ -98,9 +96,9 @@ def initiate_coupling_weights(scale, asymmetry_degree, random_connections, n_osc
         if random_connections:
             a_soc_sens_left = np.random.uniform()
             a_soc_motor_left = np.random.uniform()
-        else: 
-            a_soc_sens_left = 1
-            a_soc_motor_left = 1
+        else:
+            a_soc_sens_left = a_soc_sens
+            a_soc_motor_left = a_soc_motor
 
         a_soc_sens_right = complementary_connection(a_soc_sens_left, asymmetry_degree)
         a_soc_motor_right = complementary_connection(a_soc_motor_left, asymmetry_degree)
