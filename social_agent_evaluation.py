@@ -109,7 +109,7 @@ else:
    intrinsic_frequencies = np.array([f_sens, f_motor, f_motor])
 print(coupling_weights)
 
-if flavour == "social":
+if flavour == "social": 
     env = Social_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
         stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio, n_agents)
 
@@ -119,25 +119,20 @@ elif flavour == "eco":
     env = Social_stimulus_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
      stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio, n_agents)
 
-all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions = evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, social_sensitivity, social_weight_decay_rate, n_oscillators, flavour, n_agents, False)
+runs = evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, intrinsic_frequencies, coupling_weights, social_sensitivity, social_weight_decay_rate, n_oscillators, flavour, n_agents, False)
 
-positions_x = all_positions_x[0] # take one run
-positions_y = all_positions_y[0]
+run = runs[0]
+positions_x = run["x position"]
+positions_y = run["y position"]
 for a in range(n_agents):
     plt.plot(positions_x[a], positions_y[a])
 plt.show()
 
-print(all_approach_scores)
 plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, positions_x, positions_y , n_agents)
 
 
-
-
-
-
-# choose one of the runs
-phase_matrix = all_phases[0][0]
-
+# choose one of the players
+phase_matrix = run["phases"][0]
 # calculate the KOP
 KOP_in_time, KOP_std = calculate_KOP(phase_matrix)
 
@@ -152,17 +147,6 @@ print(KOP_std)
 plt.plot(interval_times, plv_in_time)
 plt.plot(KOP_in_time)
 plt.show()
-
-
-
-plot_single_agent_multiple_trajectories(all_positions_x, all_positions_y, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio)
-
-
-for x_position, y_position, phases, phase_differences, input_values, angles, actions in zip(all_positions_x, all_positions_y, all_phases, all_phase_differences, all_input_values, all_angles, all_actions):
-   plot_single_agent_run(f_sens, f_motor, coupling_weights, k, x_position, y_position, phase_differences, input_values, angles, actions, stimulus_scale, stimulus_ratio, stimulus_decay_rate)
-   single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate,  stimulus_ratio, duration, fs)
-
-
 
 
 

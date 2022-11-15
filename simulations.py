@@ -140,15 +140,8 @@ def evaluate_parameters_social(env, device, fs, duration, starting_distances, st
             print('flavour not recognized')
         agents.append(policy)
 
-    all_approach_scores = []   
-    all_positions_x = []
-    all_positions_y = [] 
-    all_input_values = []
-    all_phases = []
-    all_phase_differences = []
-    all_actions = []
-    all_angles = []
 
+    runs = []
     # the starting_orientations variable should contain the angle between the agent starting angles
     # do ten episodes for each parameter combination
     starting_positions = []
@@ -161,19 +154,9 @@ def evaluate_parameters_social(env, device, fs, duration, starting_distances, st
                 starting_positions.append(np.array([0, -starting_distance]))
 
 
-            approach_score, env.position_x, env.position_y, agent_input_values, agent_phases, agent_phase_differences, agent_actions, agent_angles = multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations)
-
-            all_approach_scores.append(approach_score)
-            # save the trajectories for this run
-            all_positions_x.append(env.position_x)
-            all_positions_y.append(env.position_y)
-
-            all_input_values.append(agent_input_values)
-            all_phase_differences.append(agent_phase_differences)
-            all_phases.append(agent_phases) 
-            all_actions.append(agent_actions)
-            all_angles.append(agent_angles)
-    return all_approach_scores, all_positions_x, all_positions_y, all_input_values, all_phases, all_phase_differences, all_angles, all_actions
+            run = multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations)
+            runs.append(run)
+    return runs
 
 
 def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations):
@@ -184,8 +167,8 @@ def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_
     agent_input_values = []
     agent_phase_differences = []
     agent_phases = []
-    agent_actions = []
-    agent_angles = []
+    agent_orientations = []
+    agent_output_angles = []
 
     for a in range(n_agents):
         if n_oscillators == 4:
@@ -196,8 +179,8 @@ def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_
         agent_input_values.append(np.zeros((2, fs * duration)))
         agent_phase_differences.append(np.zeros((n_oscillators, fs * duration)))
         agent_phases.append(np.zeros((n_oscillators, fs * duration)))
-        agent_actions.append([])
-        agent_angles.append([])
+        agent_orientations.append([])
+        agent_output_angles.append([])
 
 
     # Complete the whole episode
@@ -222,8 +205,8 @@ def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_
             agent_input_values[a][:,t] = agents[a].input.cpu().detach().numpy()
             agent_phase_differences[a][:, t] = agents[a].phase_difference.cpu().detach().numpy() * env.fs
             agent_phases[a][:, t] = agents[a].phases.cpu().detach().numpy()
-            agent_actions[a].append(env.agent_orientations[a])
-            agent_angles[a].append(agents[a].output_angle.cpu().detach().numpy())
+            agent_orientations[a].append(env.agent_orientations[a])
+            agent_output_angles[a].append(agents[a].output_angle.cpu().detach().numpy())
             
         if done:
                 break 
@@ -241,8 +224,18 @@ def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_
         end_distance_2 = eucl_distance_np(np.array([100, 0]), env.agent_positions[a])
         agent_scores_2.append(1 - (end_distance_2 / start_distance_2))
 
-        approach_score = np.min([np.mean(agent_scores_1), np.mean(agent_scores_2)])
+    approach_score = np.min([np.mean(agent_scores_1), np.mean(agent_scores_2)])
+
+
+    run = dict()
+    run["approach score"] = approach_score
+    run["x position"] = env.position_x
+    run["y position"] = env.position_y
+    run["input values"] = agent_input_values
+    run["phases"] =  agent_phases
+    run["phase differences"] = agent_phase_differences
+    run["orientation"] = agent_orientations
+    run["output angle"] = agent_output_angles
 
    
-    return approach_score, env.position_x, env.position_y, agent_input_values, agent_phases, agent_phase_differences, agent_actions, agent_angles
-
+    return run
