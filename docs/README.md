@@ -1,33 +1,37 @@
 
 # PyHKBs
 
-Multi-HKBs agents in Python
+This repository contains the code for simulating embodied neural agents controlled by the Haken-Kelso-Bunz (HKB) equations.
+The code uses Pytorch to enable parallelized solving of differential equations.
 
-## Roadmap
-
-- Initial experiment with toy model [2022-07-05, [helloworld.py](helloworld.py)]
-
-- Implement HKB equation and illustrate properties [2022-07-06, [basicHKB.py](basicHKB.py)]
-
-- Implement HKB composed of two oscillators [2022-07-07, [two_oscillators.py](two_oscillators.py)]
-
-- Simulate a network of oscillators with a HKB coupling matrix ($a_{i,j}, b_{i,j}$) [2022-07-11, [network_of_oscillators.py](network_of_oscillators.py)]
-
-- Create an agent class with input and output [2022-07-13, [agent.py](agent.py)]
-
-- Build a simple environment (matplotlib) [2022-07-14, [single_agent_simulation.py](single_agent_simulation.py)]
-
-- Visual simulation of agent in simple environment [2022-07-19, [single_agent_visualization.py](single_agent_visualization.py)]
-
-- Understand agent dynamics and hand-pick coupling matrix for desired behavior
-
-- Use artificial evolution or RL to find optimal HKB coupling matrix
-
-- Build a more complex environment by interfacing with Unity 3D
+## Script functionalities
+- [basicHKB.py](basicHKB.py) Illustration of how to solve the HKB equations with PyTorch
+- [two_oscillators.py](two_oscillators.py) Animation of two interacting oscillators with HKB equations
+- [agent_RL.py](agent_RL.py) Contains classes of agents 
+- [environment.py](environment.py) Contains classes of environments in which the agents move
+- [simulations.py](simulations.py) Contains functions to perform agent runs with agent and environment classes
+- [agent_evaluation.py](agent_evaluation.py) Executes single run simulations of single agents and plots trajectories
+- [social_agent_evaluation.py](social_agent_evaluation.py) Executes single run simulations of multiple agents and plots trajectories
+- [grid_search.py](grid_search.py) Executes and saves single_agent runs for many different parameter values
+- [grid_search_social.py](grid_search_social.py) Executes and saves single_agent runs for many different parameter values
+- [grid_search_evaluation.py](grid_search.py) Evaluates the saved runs of the single agent grid search
+- [grid_search_social_evaluation.py](grid_search_social_evaluation.py) Evaluates the saved runs of the multi-agent grid search
+- [visualizations.py](visualizations.py) Helper functions for plotting simulated runs
+- [ternary_plot.py](ternary_plot.py) Example code for generating ternary plots
+- [utils.py](utils.py) Helper functions
+- [training.py](utils.py) Helper functions
 
 ## Agent design
 ![alt text](https://github.com/ppsp-team/PyHKBs/blob/main/agentSchema.png?raw=true)
-The agent has four oscillators, corresponding to the sensory system (1 and 2) and motor system (3 and 4). The grey boxes represent the two eyes (or sensors). The left eye feeds the change in stimulus intensity to oscillator 1; the right eye to oscillator 2. The agent's orientation in space changes according to the phase difference between the two motor oscillators. The agent travels with a uniform speed. 
+Our agent design (named 'Guido' for 'guided oscillator' in [agent_RL.py](agent_RL.py)) consists of four oscillators, corresponding to the sensory system (1 and 2) and motor system (3 and 4). The grey boxes represent the two eyes (or sensors). The left eye feeds the change in stimulus intensity to oscillator 1; the right eye to oscillator 2. The agent's orientation in space changes according to the phase difference between the two motor oscillators. The agent travels at a uniform speed. Both the simulations with individual agents and the multi-agent simulations in the main paper are run with four-oscillator agents. The [agent_RL.py](agent_RL.py) also contains a 'SocialGuido' class with an additional 5th oscillator that represents a 'socially sensitive' oscillator that is directly sensitive to the phases of other agents. This class has not been used in the main paper.
+
+
+## Note on training possibilities
+The environment classes in [environment.py](environment.py) and the agent classes in [agent_RL.py](agent_RL.py) are made with a similar structure as standard reinforcement learning approaches. 
+The different layers of the agent classes in [agent_RL.py](agent_RL.py) are all differentiable using Autograd to ensure that they can possibly be trained using policy gradient methods in Pytorch. 
+
+## Cite as
+Coucke, N., Heinrich, M. K., Cleeremans, A., Dorigo, M. & Dumas, G. (2023). Collective decision making with embodied neural agents (in prep).
 
 ## References
 
@@ -40,3 +44,9 @@ Haken, H., Kelso, J. S., & Bunz, H. (1985). A theoretical model of phase transit
 Ramsauer, H., Schäfl, B., Lehner, J., Seidl, P., Widrich, M., Adler, T., ... & Hochreiter, S. (2020). Hopfield networks is all you need. arXiv preprint arXiv:2008.02217. [doi:10.48550/arXiv.2008.02217](https://arxiv.org/abs/2008.02217)
 
 Zhang, M., Beetle, C., Kelso, J. S., & Tognoli, E. (2019). Connecting empirical phenomena and theoretical models of biological coordination across scales. Journal of the Royal Society Interface, 16(157), 20190360. [doi:10.1098/rsif.2019.0360](https://royalsocietypublishing.org/doi/full/10.1098/rsif.2019.0360)
+
+
+
+- Use artificial evolution or RL to find optimal HKB coupling matrix
+
+- Build a more complex environment by interfacing with Unity 3D
