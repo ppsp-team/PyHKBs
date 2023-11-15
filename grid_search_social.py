@@ -94,7 +94,7 @@ def perform_grid_search(n_episodes, sensitivity_scale, k_range, f_sens_range, f_
                     env = Social_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
                         stimulus_scale, stimulus_sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, stimulus_ratio, n_agents)
                 elif agent_flavour == 'eco':
-                    agent_stimulus_scale = 1
+                    agent_stimulus_scale = 0.01 * social_sensitivity_scale
                     agent_stimulus_decay_rate = social_weight_decay_rate
                     env = Social_stimulus_environment(fs, duration, stimulus_positions, stimulus_decay_rate,
                         stimulus_scale, sensitivity, movement_speed, agent_radius, agent_eye_angle, delta_orientation, agent_stimulus_scale, agent_stimulus_decay_rate, stimulus_ratio, n_agents)
@@ -129,16 +129,16 @@ def perform_grid_search(n_episodes, sensitivity_scale, k_range, f_sens_range, f_
                                             i+=1
                                             # store one entry in the dataframe and one in the list
                                             grid_results = grid_results.append(configuration_result)
-                                            with open(r"Social_GridSearchResults_" + str(n_oscillators) + '_' + agent_flavour + "/run_" + str(i_run) + ".pickle", "wb") as output_file: 
+                                            with open(r"results/Social_GridSearchResults_" + str(n_oscillators) + '_' + agent_flavour + "/run_" + str(i_run) + ".pickle", "wb") as output_file: 
                                                 pickle.dump(run, output_file, protocol=pickle.HIGHEST_PROTOCOL)
                                             i_run+=1
                                     tq.update(1)
                                     #print( "configuration " + str(config) + " of " + str(n_configurations))
                                     config+=1
 
-            # save the results every few runs
-            with open(r"Social_GridSearchResults_" + str(n_oscillators) + '_' + agent_flavour + ".pickle", "wb") as output_file: 
-               pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+                                    # save the results every few runs
+                                    with open(r"results/Social_GridSearchResults_" + str(n_oscillators) + '_' + agent_flavour + ".pickle", "wb") as output_file: 
+                                        pickle.dump(grid_results, output_file, protocol=pickle.HIGHEST_PROTOCOL)
     print("done")                          
     return grid_results
             

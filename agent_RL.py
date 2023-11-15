@@ -14,7 +14,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from utils import symmetric_matrix, eucl_distance
-from agent import Agent
 import time
 from matplotlib import animation
 import tkinter as tk

@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 from utils import eucl_distance, symmetric_matrix, eucl_distance_np
-from agent import Agent
 import time
 from matplotlib import animation
 import tkinter as tk
@@ -23,10 +22,7 @@ import cmath
 
 
 
-# during the training: vary starting position and orientation
-# In this function, the agent's body (position etc) is part of the environment, 
-# when spawning multiple agents, this has to be adapted to accomodate multiple agents 
-# in which each agent has a class within the environment
+
 
 class Environment():
 
@@ -49,7 +45,7 @@ class Environment():
 
 
     def reset(self, starting_position, starting_orientation):
-        """ For the next episode, train the angent in the same 
+        """ For the next episode, train the agent in the same 
         environment but with a different initial position and orientation"""
         self.position = starting_position
         self.orientation = starting_orientation

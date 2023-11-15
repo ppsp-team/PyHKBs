@@ -1,3 +1,17 @@
+#!/usr/bin/env python
+# coding=utf-8
+# ==============================================================================
+# title           : basicHKB.py
+# description     : Functions for running agent simulations
+# author          : Nicolas Coucke
+# date            : 2022-07-06
+# version         : 1
+# usage           : use inside agent_evaluation.py, grid_search_evaluation.py,
+#                   social_agent_evaluation.py, grid_search_social.py
+# notes           : install the packages with "pip install -r requirements.txt"
+# python_version  : 3.9.2
+# ==============================================================================
+
 from utils import symmetric_matrix, eucl_distance, eucl_distance_np
 from environment import Environment, Social_environment
 from visualizations import single_agent_animation, plot_single_agent_run
@@ -33,14 +47,13 @@ def evaluate_parameters(env, device, duration, fs, starting_distances, starting_
 
     starting_distances: an array of distances (on the y axis) that an agent will start from the stimulus at which the run is executed
 
-    starting_orientations: similar for the orientations
+    starting_orientations: an array of initial agent orientations (radians) 
 
     """
     # create agent with these parameters
-    print('oscil outside ' + str(n_oscillators))
-
     policy = Guido(device, fs, frequency, coupling_weights, k, n_oscillators).to(device)
-    # make saving runs for each episode
+
+    # initiate saving runs for each episode
     runs = []
     # do episodes for each parameter combination
     for starting_distance in starting_distances:
@@ -51,6 +64,10 @@ def evaluate_parameters(env, device, duration, fs, starting_distances, starting_
     return runs
 
 def single_simulation(env, duration, fs, policy, n_oscillators, starting_distance, starting_orientation, random_phases):
+    """
+    Performs a single run of the agent in the environment 
+
+    """
 
     starting_position = np.array([0, -starting_distance])
 
@@ -125,9 +142,13 @@ def single_simulation(env, duration, fs, policy, n_oscillators, starting_distanc
 
 
 def evaluate_parameters_social(env, device, fs, duration, starting_distances, starting_orientations, k, frequency, coupling_weights, social_sensitivity, social_weight_decay_rate, n_oscillators, flavour, n_agents, plot):
-
+    """
+    Wrapper function for multi_agent_simulation.py
+    Performs multiple multi-agent runs
+    """
     print(flavour)
     print(n_agents)
+
      # create multiple agents with same parameters
     agents = []
     for i in range(n_agents):
@@ -160,6 +181,10 @@ def evaluate_parameters_social(env, device, fs, duration, starting_distances, st
 
 
 def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_agents, starting_positions, agent_starting_orientations):
+    """
+    performs one multi-agent run
+    
+    """
 
     states = env.reset(starting_positions, agent_starting_orientations, 10)
 
@@ -216,15 +241,17 @@ def multi_agent_simulation(env, duration, fs, agents, n_oscillators, flavour, n_
 
     # calculate scores when simulation is over
     for a in range(n_agents):
-        start_distance_1 = eucl_distance_np(np.array([-100, 0]), starting_positions[a])
-        end_distance_1 = eucl_distance_np(np.array([-100, 0]), env.agent_positions[a])
+        start_distance_1 = 141
+        end_distance_1 = eucl_distance_np(np.array([-100, 0]), np.array([env.position_x[a][-1], env.position_y[a][-1]]))
+        print(end_distance_1)
         agent_scores_1.append(1 - (end_distance_1 / start_distance_1))
 
-        start_distance_2 = eucl_distance_np(np.array([100, 0]), starting_positions[a])
-        end_distance_2 = eucl_distance_np(np.array([100, 0]), env.agent_positions[a])
+        start_distance_2 = 141
+        end_distance_2 = eucl_distance_np(np.array([100, 0]), np.array([env.position_x[a][-1], env.position_y[a][-1]]))
+        print(end_distance_2)
         agent_scores_2.append(1 - (end_distance_2 / start_distance_2))
 
-    approach_score = np.min([np.mean(agent_scores_1), np.mean(agent_scores_2)])
+    approach_score = np.max([np.mean(agent_scores_1), np.mean(agent_scores_2)])
 
 
     run = dict()

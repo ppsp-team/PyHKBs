@@ -6,7 +6,7 @@
 # author          : Nicolas Coucke
 # date            : 2022-09-13
 # version         : 1
-# usage           : inside other scripts
+# usage           : use in agent_evaluation.py & social_agnt_evaluation.py
 # notes           : install the packages with "pip install -r requirements.txt"
 # python_version  : 3.9.2
 # ==============================================================================
@@ -27,20 +27,20 @@ import pickle
 def plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_positions, y_positions, n_agents):
     fig, (ax)= plt.subplots(1,1)
     cmap = plt.cm.get_cmap("magma")
+    t=0
+   
     # plot the trajectory of all agents in the environment
-    for i in range(1,n_agents):
-        x_prev = x_positions[i][0]
-        y_prev = y_positions[i][1]
-        t = 0
-        for x, y in zip(x_positions[i], y_positions[i]):
+    for i in range(n_agents):
+        agent_x = np.clip(x_positions[i], -200, 200)
+        agent_y = np.clip(y_positions[i], -150, 150)
+        ax.plot(agent_x, agent_y, color = cmap(i/n_agents))
+        #for x, y in zip(x_positions[i], y_positions[i]):
             # later samples are more visible
-            a = 0.1 + 0.5*t/len(x_positions[i])
-            ax.plot([x_prev, x], [y_prev, y], alpha = a, color = cmap(i/n_agents))
-            x_prev = x
-            y_prev = y
-            t+=1
-        ax.set_xlim([-150, 150])
-        ax.set_ylim([-150, 150])
+            #a = 0.1 + 0.5*t/len(x_positions[i])
+            #ax.plot([x_prev, x], [y_prev, y], alpha = a, color = cmap(i/n_agents))
+           # x_prev = x
+           # y_prev = y
+           # t+=1
 
     # plot the environment with stimulus concentration
     N = 1000
@@ -56,9 +56,12 @@ def plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_
     zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
     environment_plot = ax.contourf(x, y, zs_1 + zs_2)
 
-
+    ax.set_xlim([-200, 200])
+    ax.set_ylim([-150, 150])
     ax.axis('scaled')
+    fig.tight_layout()
     plt.colorbar(environment_plot, ax=ax)
+    #plt.show()
     return fig
 
 
@@ -220,6 +223,46 @@ def plot_single_agent_run(f_sens, f_motor, coupling_values, k, x_position, y_pos
 
 
 
+def plot_single_agent_run_simplified(x_position, y_position, stimulus_scale, stimulus_ratio, stimulus_decay_rate):
+
+    fig, (ax1) = plt.subplots()
+    # plot the trajectory of the agant in the environment
+    i = 0
+    x_prev = x_position[0]
+    y_prev = y_position[0]
+    for x, y in zip(x_position, y_position):
+        # later samples are more visible
+        a = 0.1 + 0.5*i/len(x_position)
+        ax1.plot([x_prev, x], [y_prev, y], alpha = a, color = 'red')
+        x_prev = x
+        y_prev = y
+        i+=1
+    ax1.set_xlim([-200, 200])
+    ax1.set_ylim([-150, 150])
+
+
+    # plot the environment with stimulus concentration
+    N = 1000
+    x = np.linspace(-200, 200, N)
+    y = np.linspace(-150, 150, N)
+    xx, yy = np.meshgrid(x, y)
+    xx, yy = np.meshgrid(x, y)
+    zz_1 = np.sqrt((xx+100)**2 + yy**2)   
+    zs_1 = stimulus_scale * np.exp( - stimulus_decay_rate * zz_1)
+    #environment_plot = ax1.contourf(x, y, zs_1)
+
+    zz_2 = np.sqrt((xx-100)**2 + yy**2)   
+    zs_2 = stimulus_ratio*stimulus_scale * np.exp( - stimulus_decay_rate * zz_2)
+    environment_plot = ax1.contourf(x, y, zs_1 + zs_2)
+    ax1.axis('scaled')
+
+    plt.colorbar(environment_plot, ax=ax1)
+    plt.show()
+
+    return fig
+
+
+
 
 def plot_single_agent_multiple_trajectories(x_positions, y_positions, stimulus_scale, stimulus_decay_rate, environment, stimulus_ratio):
     fig, (ax1)= plt.subplots(1,1)
@@ -266,7 +309,7 @@ def plot_single_agent_multiple_trajectories(x_positions, y_positions, stimulus_s
 
 
 
-def single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate, stimulus_ratio, duration, fs):
+def single_agent_animation(x_position, y_position, phases, phase_differences, stimulus_scale, stimulus_decay_rate, stimulus_ratio, duration, fs, save):
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.set_size_inches(12,5)
     # plot the environment with stimulus concentration
@@ -294,10 +337,10 @@ def single_agent_animation(x_position, y_position, phases, phase_differences, st
     ax2.set_ylim([-1.5, 1.5])
 
 
-    oscillator1 = ax2.scatter(-1,1, s = 40, animated=True) 
-    oscillator2 = ax2.scatter(1,1, s = 40, animated=True)
-    oscillator3 = ax2.scatter(-1,-1, s = 40, animated=True)
-    oscillator4 = ax2.scatter(1,-1, s = 40, animated=True)
+    oscillator1 = ax2.scatter(-1,1, s = 4, animated=True) 
+    oscillator2 = ax2.scatter(1,1, s = 4, animated=True)
+    oscillator3 = ax2.scatter(-1,-1, s = 4, animated=True)
+    oscillator4 = ax2.scatter(1,-1, s = 4, animated=True)
     oscillators = [oscillator1, oscillator2, oscillator3, oscillator4]
     line_1_2, = ax2.plot([-1, 1], [1, 1], color = 'grey')
     line_1_3, = ax2.plot([-1, -1], [1, -1], color = 'grey')
@@ -335,13 +378,16 @@ def single_agent_animation(x_position, y_position, phases, phase_differences, st
             lines[L].set_linewidth(between_oscillator )
 
         for O in range(4):
-            patches[O].radius = 0.1 + 0.02 * np.abs(phase_differences[O,i]) 
+            patches[O].radius = 0.1 + 0.002 * np.abs(phase_differences[O,i]) 
 
         return trajectory, line_1_2, line_1_3, line_1_4, line_2_3, line_2_4, line_3_4, patch1, patch2, patch3, patch4
 
 
-    anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 40,
+    anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration*fs), interval = 40,
             blit = True)
+
+    if save:
+        anim.save('results/sigle_agent_animation.gif')
 
     plt.show()
     return anim
@@ -349,7 +395,9 @@ def single_agent_animation(x_position, y_position, phases, phase_differences, st
 
 
 
-def multi_agent_animation(fig, ax, stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_positions, y_positions, n_agents, duration, fs):
+def multi_agent_animation(stimulus_ratio, stimulus_decay_rate, stimulus_scale, x_positions, y_positions, n_agents, duration, fs, save):
+    
+    fig, (ax) = plt.subplots(1, 1)
     cmap = plt.cm.get_cmap("magma")
     # make simulation
     # plot trajectories and angles of all players
@@ -397,5 +445,8 @@ def multi_agent_animation(fig, ax, stimulus_ratio, stimulus_decay_rate, stimulus
     anim = animation.FuncAnimation(fig, update_simulation, frames = range(duration * fs), interval = 40,
             blit = True)
 
-    return anim
+    if save:
+        anim.save('results/multi_agent_animation.gif')
+
+    return #anim
    

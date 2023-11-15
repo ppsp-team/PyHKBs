@@ -20,8 +20,8 @@ from torchdiffeq import odeint
 
 # Generate parameters to plot phase space
 frequency_difference = 0.  # Hertz, difference between intrinsic frequencies; this can modify the "strength" of an attractor/repeller
-phase_coupling = 0 # strength of in-phase coupling
-anti_phase_coupling = 0  # strength of anti-phase coupling
+phase_coupling = 5 # strength of in-phase coupling
+anti_phase_coupling = 2  # strength of anti-phase coupling
 # higher values of b with respect to a lead to a larger stable region of anti-phase coupling 
 # (try setting a to 5 and varying b to 0,1,2,5)
 
@@ -29,14 +29,22 @@ anti_phase_coupling = 0  # strength of anti-phase coupling
 # Generate phase range  in which to plot equation
 phase_range = np.linspace(-np.pi, 2 * np.pi, 540)
 
+
+# define HKB equations without Pytorch
 def HKBextended(phase): 
     "Extended HKB equation."
     return frequency_difference - phase_coupling * np.sin(phase) - 2 * anti_phase_coupling * np.sin(2 * phase)
 
 
 # Visualization of the phase space and find fixed points
+
+# plot zero line
 plt.plot(phase_range, np.zeros((len(phase_range))), color = 'black', linewidth = 1)
+
+# plot phase space
 plt.plot(phase_range, HKBextended(phase_range))#, color = 'lightblue')
+
+# plot point attractors
 for i in range(1, len(phase_range - 1)):
     # indicate attractors in green
     if (HKBextended(phase_range[i]) < 0) & (HKBextended(phase_range[i - 1]) > 0):
@@ -47,7 +55,6 @@ for i in range(1, len(phase_range - 1)):
 plt.xlabel("phase " + r'$\phi$')
 plt.ylabel("phase change " + r'$\dot{\phi}$')
 plt.xlim([-np.pi, 2*np.pi])
-plt.ylim([-3, 3])
 plt.show()
 
 
@@ -72,6 +79,7 @@ frequency_difference_torch = torch.as_tensor([0.])
 # Generate time
 t = torch.linspace(start=0, end=float(duration), steps=int(duration * fs))
 
+# Define HKB equations in Pytorch
 def HKBextended_torch(t, phase):
     "Extended HKB equation."
     return torch.as_tensor([frequency_difference - phase_coupling_torch *

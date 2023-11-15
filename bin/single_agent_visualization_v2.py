@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 from utils import symmetric_matrix, eucl_distance
-from agent import Agent
+from bin.agent import Agent
 import time
 from matplotlib import animation
 import tkinter as tk
