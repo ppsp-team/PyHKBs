@@ -19,10 +19,12 @@ The code uses Pytorch to enable parallelized solving of differential equations.
 - [visualizations.py](visualizations.py) Helper functions for plotting simulated runs
 - [ternary_plot.py](ternary_plot.py) Example code for generating ternary plots
 - [utils.py](utils.py) Helper functions
-- [training.py](utils.py) Helper functions
 
 ## Agent design
-![alt text](https://github.com/ppsp-team/PyHKBs/blob/main/docs/agentSchema.png?raw=true)
+
+<img src="https://github.com/ppsp-team/PyHKBs/blob/main/docs/agentSchema.png" width="400" alt="alt text">
+
+
 Our agent design (named 'Guido' for 'guided oscillator' in [agent_RL.py](agent_RL.py)) consists of four oscillators, corresponding to the sensory system (1 and 2) and motor system (3 and 4). The grey boxes represent the two eyes (or sensors). The left eye feeds the change in stimulus intensity to oscillator 1; the right eye to oscillator 2. The agent's orientation in space changes according to the phase difference between the two motor oscillators. The agent travels at a uniform speed. Both the simulations with individual agents and the multi-agent simulations in the main paper are run with four-oscillator agents. The [agent_RL.py](agent_RL.py) also contains a 'SocialGuido' class with an additional 5th oscillator that represents a 'socially sensitive' oscillator that is directly sensitive to the phases of other agents. This class has not been used in the main paper.
 
 
@@ -45,8 +47,3 @@ Ramsauer, H., Schäfl, B., Lehner, J., Seidl, P., Widrich, M., Adler, T., ... & 
 
 Zhang, M., Beetle, C., Kelso, J. S., & Tognoli, E. (2019). Connecting empirical phenomena and theoretical models of biological coordination across scales. Journal of the Royal Society Interface, 16(157), 20190360. [doi:10.1098/rsif.2019.0360](https://royalsocietypublishing.org/doi/full/10.1098/rsif.2019.0360)
 
-
-
-- Use artificial evolution or RL to find optimal HKB coupling matrix
-
-- Build a more complex environment by interfacing with Unity 3D
