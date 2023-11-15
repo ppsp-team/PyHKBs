@@ -22,7 +22,7 @@ The code uses Pytorch to enable parallelized solving of differential equations.
 - [training.py](utils.py) Helper functions
 
 ## Agent design
-![alt text](https://github.com/ppsp-team/PyHKBs/docs/agentSchema.png?raw=true)
+![alt text](https://github.com/ppsp-team/PyHKBs/blob/main/docs/agentSchema.png?raw=true)
 Our agent design (named 'Guido' for 'guided oscillator' in [agent_RL.py](agent_RL.py)) consists of four oscillators, corresponding to the sensory system (1 and 2) and motor system (3 and 4). The grey boxes represent the two eyes (or sensors). The left eye feeds the change in stimulus intensity to oscillator 1; the right eye to oscillator 2. The agent's orientation in space changes according to the phase difference between the two motor oscillators. The agent travels at a uniform speed. Both the simulations with individual agents and the multi-agent simulations in the main paper are run with four-oscillator agents. The [agent_RL.py](agent_RL.py) also contains a 'SocialGuido' class with an additional 5th oscillator that represents a 'socially sensitive' oscillator that is directly sensitive to the phases of other agents. This class has not been used in the main paper.
 
 
