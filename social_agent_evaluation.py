@@ -2,7 +2,7 @@ import numpy as np
 from utils import symmetric_matrix, eucl_distance, initiate_coupling_weights
 from environment import Environment, Social_environment, Social_stimulus_environment
 from simulations import evaluate_parameters_social
-from visualizations import plot_multi_agent_run, multi_agent_animation
+from visualizations import plot_multi_agent_run
 from agent_RL import Gina, Guido, MultipleGuidos
 
 import time
@@ -26,19 +26,7 @@ def calculate_KOP(phase_matrix):
    KOP_std = np.std(KOP_in_time)
    return KOP_in_time, KOP_std
 
-
-def calculate_movement_KOP(orientations):
-   orientations_matrix = np.zeros((len(orientations), len(orientations[0])))
-   for a in range(len(orientations)):
-      orientations_matrix[a,:] = orientations[a]
-
-   KOP_in_time = np.abs(np.mean(np.exp(1j * orientations_matrix), 0))
-   KOP_std = np.std(KOP_in_time)
-   return KOP_in_time, KOP_std
-
-
-
-def calculate_average_PLV_individual(phase_matrix, window_length, window_step):
+def calculate_average_PLV(phase_matrix, window_length, window_step):
    # calculate windowed PLV
    window_start = 0
    window_end = window_start + window_length
@@ -165,7 +153,7 @@ def calculate_average_PLV(phase_matrices, window_length, window_step, fs):
 
 
 # define variables for environment
-fs = 100 # Hertz
+fs = 50 # Hertz
 duration = 30 # Seconds
 stimulus_positions = [np.array([-100, 0]), np.array([100,0])] # m, m
 stimulus_decay_rate = 0.02 # in the environment
@@ -187,26 +175,23 @@ environment = "double_stimulus"
 a_sens = 0.
 a_ips_left = 0.
 a_ips_right= 0.
-a_con_left = 1
-a_con_right = 1
-a_motor = 0.5
-scale = 1
-stimulus_sensitivity = 3
+a_con_left = 0.5
+a_con_right = 0.5
+a_motor = 0.
+scale = 2.
+stimulus_sensitivity = 2
 social_sensitivity = 0
-social_weight_decay_rate = 0.0
-
-agent_stimulus_scale = 0.005 * social_sensitivity
-
+social_weight_decay_rate = 0.01
 
 f_sens = 5.
 f_motor = 5.
 k = 2
 a_soc_sens_left = 0.
 a_soc_sens_right = 0.
-a_soc_motor_left = 1
-a_soc_motor_right = 1
-n_oscillators = 4
-flavour = 'eco'
+a_soc_motor_left = 0.8
+a_soc_motor_right = 0.8
+n_oscillators = 5
+flavour = 'social'
 n_agents = 10
 
 if n_oscillators == 4:
@@ -234,52 +219,9 @@ positions_x = run["x position"]
 positions_y = run["y position"]
 for a in range(n_agents):
     plt.plot(positions_x[a], positions_y[a])
-plt.title(run["approach score"])
-plt.show()
-
-
-orientations = run["orientation"]
-fig, (ax1,ax2) = plt.subplots(2,1)
-ax1_2 = ax1.twinx()
-# get the movement angles
-times = np.linspace(0, 30, len(orientations[0]))
-for a in range(len(orientations)):
-   ax1.plot(times, orientations[a], color = 'grey')
-
-ax1.set_ylabel('agent orientations', color = 'grey')
-ax1.set_ylim([-3, 3])
-ax1.set_title('Movement dynamics')
-KOP_in_time,_ = calculate_movement_KOP(orientations)
-ax1_2.plot(times, KOP_in_time, linewidth = 6, color = 'red', alpha = 0.5)
-ax1_2.set_ylabel('KOP', color= 'red')
-ax1_2.tick_params(axis='y', labelcolor='red')
-ax1_2.set_ylim([0, 1])
-
-
-phase_matrices = run["phases"]
-window_length = fs
-window_step = fs/10
-inter_plv_in_time, interval_times, _,_,_= calculate_average_inter_agent_PLV(phase_matrices, window_length, window_step, fs)
-
-intra_plv_in_time, _, _ = calculate_average_PLV(phase_matrices, window_length, window_step, fs)
-
-
-fig, ax = plt.subplots()
-
-line_1, = ax2.plot(interval_times, intra_plv_in_time)
-line_2, = ax2.plot(interval_times, inter_plv_in_time)
-
-ax2.legend([line_1, line_2], ['INTRA-agent', 'INTER-agent'])
-ax2.set_ylabel('wPLI')
-ax2.set_xlabel('time')
-ax2.set_title('Brain dynamics')
 plt.show()
 
 plot_multi_agent_run(stimulus_ratio, stimulus_decay_rate, stimulus_scale, positions_x, positions_y , n_agents)
-#multi_agent_animation(stimulus_ratio, stimulus_decay_rate, stimulus_scale, positions_x, positions_y, n_agents, duration, fs, True)
-
-
-
 
 
 # choose one of the players
